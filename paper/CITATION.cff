@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use CRYS-L, please cite it as below."
+type: software
+title: "CRYS-L: A Deterministic Execution Engine for Safety-Critical Engineering Computations"
+version: 3.2.0
+date-released: 2026-04-17
+url: "https://desarrollador.xyz"
+repository-code: "https://github.com/condesi/crysl"
+license: MIT
+authors:
+  - family-names: Rojas Masgo
+    given-names: Percy
+    email: percy.rojas@condesi.pe
+    affiliation: "Condesi Perú / Qomni AI Lab"
+keywords:
+  - deterministic computing
+  - IEEE-754
+  - JIT compilation
+  - safety-critical systems
+  - engineering calculations
+  - Rust
+  - Cranelift
+  - AVX2
+abstract: >
+  CRYS-L is an execution engine that enforces zero-variance determinism
+  for safety-critical engineering calculations. Physics formulas compile
+  to Cranelift JIT + AVX2 via the branchless oracle pattern, producing
+  bit-identical IEEE-754 results across any number of runs, servers, and loads.
+  Covers 56 plans across NFPA 20, IEC 60364, ASCE 7, HVAC, finance, and medical.
