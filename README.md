@@ -72,18 +72,30 @@ curl https://qomni.clanmarketer.com/crysl/api/benchmark/all | python3 -m json.to
 curl https://qomni.clanmarketer.com/crysl/api/simulation/simd_density
 ```
 
-### Build from source
+### Install on Ubuntu 24.04 (one command)
 
-**Requirements:**
-- Linux x86-64 (Ubuntu 20.04+ / Debian 11+)
-- CPU with AVX2 support (Intel Haswell 2013+ / AMD Zen 2018+)
-- Rust 1.75+
-- Optional: `llc-18`, `clang-18` (LLVM backend), `wat2wasm` (WASM backend)
+```bash
+curl -fsSL https://raw.githubusercontent.com/condesi/crysl/main/install.sh | bash
+```
+
+What the script does:
+1. Verifies AVX2 support (`/proc/cpuinfo`)
+2. Installs Rust via rustup if not present
+3. Clones the repo to `/opt/crysl`
+4. Builds with `RUSTFLAGS="-C target-cpu=native"` (AVX2 enabled)
+5. Installs binary to `/usr/local/bin/crysl`
+6. Creates and starts `crysl-nfpa.service` (systemd, port 9001)
+7. Optionally configures nginx (set `DOMAIN=yourdomain.com` at top of script)
+8. Verifies: runs `plan_pump_sizing` and checks result = 16.835017 HP
+
+**Requirements:** Linux x86-64, Ubuntu 20.04+, CPU with AVX2 (Intel Haswell 2013+ / AMD Zen+)
+
+### Build from source (manual)
 
 ```bash
 git clone https://github.com/condesi/crysl
 cd crysl
-cargo build --release
+RUSTFLAGS="-C target-cpu=native" cargo build --release
 ./target/release/crysl serve ./stdlib/all_domains.crys 9001
 ```
 
@@ -91,14 +103,17 @@ cargo build --release
 
 ```ini
 [Unit]
-Description=CRYS-L Optimization Engine
+Description=CRYS-L Plan Engine
 After=network.target
 
 [Service]
+Environment=QOMNI_PATCH_ENABLED=0
 Type=simple
+User=root
+WorkingDirectory=/opt/crysl
 ExecStart=/usr/local/bin/crysl serve /opt/crysl/stdlib/all_domains.crys 9001
 Restart=always
-LimitNOFILE=65536
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
