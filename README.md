@@ -1,190 +1,179 @@
-# CRYS-L — Crystal Language
+# CRYS-L — Execution Engine Without Variability for Critical Systems
 
-**Compiled DSL for deterministic multi-objective engineering optimization**
+**Mathematically reproducible in production under any load. Same input → same IEEE-754 bits. Always.**
 
-[![Live Benchmarks](https://img.shields.io/badge/benchmarks-live-00e5ff)](https://qomni.clanmarketer.com/crysl/demo/benchmark.html)
-[![API](https://img.shields.io/badge/API-v3.2-e040fb)](https://qomni.clanmarketer.com/crysl/api/health)
-[![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+Not an estimator. Not a model. A compiled oracle engine — physics expressions compile to Cranelift JIT + AVX2 and produce bit-identical results across any server, any load, any number of runs.
+
+```
+variance across 20 repeated runs  = 0.000000000000  (not "near zero" — exactly zero)
+panics on 100,000 adversarial inputs = 0
+jitter σ = 4,922 ns vs C++ σ = 850,000 ns  (173× more stable)
+throughput = 77M+ simulations/sec
+```
+
+---
+
+## Verify yourself — no account needed
+
+```bash
+# Live simulation status
+curl https://qomni.clanmarketer.com/crysl/simulation/status
+
+# IEEE-754 determinism: 20 runs, variance = 0.000000000000
+curl https://qomni.clanmarketer.com/crysl/simulation/repeatability
+
+# Adversarial resilience: 100,000 corrupt inputs (NaN/inf/zero/negative), 0 panics
+curl https://qomni.clanmarketer.com/crysl/simulation/adversarial
+
+# Jitter stability: σ=4,922ns vs C++ σ=850,000ns
+curl https://qomni.clanmarketer.com/crysl/simulation/jitter_bench
+
+# Determinism proof with result hash — same input always produces same hash
+curl "https://qomni.clanmarketer.com/crysl/verify?runs=20"
+
+# All 56 physics plans
+curl https://qomni.clanmarketer.com/crysl/plans
+```
+
+Every response carries identity headers:
+```
+X-Engine: CRYS-L v3.2
+X-Deterministic: true
+X-IEEE-754: enforced
+```
+
+**Live dashboard:** https://qomni.clanmarketer.com/crysl/demo/benchmark.html
+
+---
+
+## Run a physics plan
+
+```bash
+# NFPA 20 fire pump sizing — bit-identical on every run, every server
+curl -X POST https://qomni.clanmarketer.com/crysl/api/plan/execute \
+  -H "Content-Type: application/json" \
+  -d '{"plan":"plan_pump_sizing","params":{"Q_gpm":500,"P_psi":100,"eff":0.75}}'
+```
+
+```json
+{
+  "ok": true,
+  "plan": "plan_pump_sizing",
+  "result": {
+    "steps": [
+      { "step": "hp_required",  "oracle": "nfpa20_pump_hp",         "result": 16.835017 },
+      { "step": "shutoff_p",    "oracle": "nfpa20_shutoff_pressure", "result": 130.0 },
+      { "step": "service_head", "oracle": "nfpa20_service_head",     "result": 231.0 }
+    ]
+  }
+}
+```
+
+```bash
+# IEC 60364 voltage drop — 480V, 125A, 300ft run, AWG 2
+curl -X POST https://qomni.clanmarketer.com/crysl/api/plan/execute \
+  -H "Content-Type: application/json" \
+  -d '{"plan":"plan_voltage_drop","params":{"voltage_v":480,"current_a":125,"length_ft":300,"wire_size_awg":2}}'
+# result: 11.695181 V drop — same value, every time
+```
+
+---
+
+## The mechanism
+
+Standard C++ cannot be auto-vectorized when branches exist, and produces UB on invalid input:
+
+```cpp
+// Branches kill vectorization. NaN return = UB risk downstream.
+float nfpa20_pump_hp(float flow, float head, float eff) {
+    if (flow < 1.0 || flow > 50000.0 || eff < 0.10) return NAN;
+    return (flow * 0.06309 * head * 0.70307) / (eff * 76.04);
+}
+```
+
+CRYS-L replaces every branch with a float predicate:
+
+```
+oracle nfpa20_pump_hp(flow: float, head: float, eff: float) -> float:
+    let valid = (flow >= 1.0) * (flow <= 50000.0) * (eff >= 0.10)
+    ((flow * 0.06309 * head * 0.70307) / (eff * 76.04 + 0.0001)) * valid
+```
+
+- `valid` is `1.0` when all conditions pass, `0.0` otherwise
+- Invalid input returns `0.0` — no NaN, no UB, no panic
+- 4 scenarios pack into one `VMULPD` AVX2 instruction
+- Cranelift JIT compiles each oracle to native binary, cached per domain
+
+---
 
 ## Performance
 
-| Metric | Value |
-|--------|-------|
-| Scenarios/second | 154,439,021 |
-| Pareto front (170 solutions) | 1.84 ms |
-| Jitter σ (SCHED_FIFO, 10K ticks) | 3,334 ns |
-| Panics under 1.28M adversarial inputs | 0 |
-| Throughput vs. LLM sequential inference | 1.53B× |
+| System | Scenarios/s | Jitter σ | Determinism | Cost/month |
+|---|---|---|---|---|
+| **CRYS-L v3.2 AVX2** | **77M+** | **4,922 ns** | **IEEE-754 exact** | **$80** |
+| C++ GCC -O3 | ~5M | ~850,000 ns | risk: UB on NaN path | same HW |
+| Python/NumPy | ~200K | >1ms | risk: version drift | same HW |
 
-All numbers are live and reproducible: [benchmark dashboard](https://qomni.clanmarketer.com/crysl/demo/benchmark.html)
+---
 
-## What is CRYS-L?
-
-CRYS-L is a compiled domain-specific language for exhaustive engineering optimization. Instead of generating one probable answer, it evaluates every possible configuration in a parameter space and returns mathematically verified Pareto-optimal solutions.
+## 56 Physics Plans across 6 domains
 
 ```
-oracle nfpa20_pump_hp(flow_gpm: float, head_psi: float, eff: float) -> float:
-    let valid = (flow_gpm >= 1.0) * (flow_gpm <= 50000.0) * (eff >= 0.10)
-    let q = flow_gpm * 0.06309
-    let h = head_psi  * 0.70307
-    ((q * h) / (eff * 76.04 + 0.0001)) * valid
+Fire Protection   — sprinkler design, pump sizing, pipe flow (Manning/Hazen-Williams), egress
+Electrical        — load analysis, 3-phase, transformer sizing, voltage drop, power factor
+Structural        — beam deflection, column buckling, wind/seismic loads, foundation bearing
+HVAC              — cooling load, duct sizing, psychrometrics
+Finance           — payroll, tax brackets, NPV, loan amortization
+Medical           — BMI, GFR, dosing, fluid balance
 ```
 
-Comparisons return `float` (0.0 or 1.0), enabling branchless physics validation that maps directly to AVX2 SIMD instructions.
+```bash
+curl https://qomni.clanmarketer.com/crysl/plans | jq '.[].name'
+```
+
+---
+
+## Why this matters for critical systems
+
+Engineering certifications require results that are **provably identical** across runs:
+
+- **NFPA 20** (fire pump systems): calculation must match on audit
+- **IEC 60364** (electrical installations): voltage drop must be reproducible
+- **ASCE 7** (structural loads): wind/seismic calculations must be auditable
+
+An LLM cannot provide this. C++ with different compiler flags cannot provide this. CRYS-L can — and proves it live via the `/verify` endpoint, which returns a result hash that is identical on every call.
+
+---
 
 ## Architecture
 
 ```
-oracle/plan source (.crys)
-        ↓
-    Lexer → Parser → AST → Type Checker
-        ↓
-   ┌────────────────────────────────┐
-   │  Cranelift JIT (default)       │  sub-ms startup
-   │  LLVM 18 IR text → .so        │  maximum optimization
-   │  WebAssembly (WAT) → .wasm    │  browser deployment
-   └────────────────────────────────┘
-        ↓
-   AVX2 SoA Sweep Engine
-   (4 scenarios/instruction, SCHED_FIFO)
-        ↓
-   3-objective Pareto Front
-   (efficiency × cost × risk)
+CRYS-L DSL source (.crysl)
+  ↓ compile
+Cranelift JIT → AVX2 native binary
+Branchless float predicates (no NaN, no UB)
+OracleCache — plans served at nanosecond latency
+  ↓ 77M+ simulations/sec
+Pareto optimizer — full parameter space sweep
+3-objective: efficiency · cost · compliance
+Returns all Pareto-optimal solutions
 ```
 
-## Quick Start
+**Runtime:** Rust · Cranelift JIT · AVX2 + FMA  
+**Server:** AMD EPYC 12-core, 48GB RAM ($80/month)  
+**API:** REST + WebSocket (real-time simulation stream)
 
-### Try the live API
+---
 
-```bash
-# Health check
-curl https://qomni.clanmarketer.com/crysl/api/health
+## API
 
-# Evaluate an oracle
-curl -X POST https://qomni.clanmarketer.com/crysl/api/eval \
-  -H "Content-Type: application/json" \
-  -d '{"expr": "nfpa20_pump_hp(500.0, 100.0, 0.75)"}'
+Demo tier: 3 req/min on compute-heavy endpoints  
+Production access: percy.rojas@condesi.pe
 
-# Run all 4 benchmark proofs
-curl https://qomni.clanmarketer.com/crysl/api/benchmark/all | python3 -m json.tool
+---
 
-# Live SIMD proof
-curl https://qomni.clanmarketer.com/crysl/api/simulation/simd_density
-```
+## Contact
 
-### Install on Ubuntu 24.04 (one command)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/condesi/crysl/main/install.sh | bash
-```
-
-What the script does:
-1. Verifies AVX2 support (`/proc/cpuinfo`)
-2. Installs Rust via rustup if not present
-3. Clones the repo to `/opt/crysl`
-4. Builds with `RUSTFLAGS="-C target-cpu=native"` (AVX2 enabled)
-5. Installs binary to `/usr/local/bin/crysl`
-6. Creates and starts `crysl-nfpa.service` (systemd, port 9001)
-7. Optionally configures nginx (set `DOMAIN=yourdomain.com` at top of script)
-8. Verifies: runs `plan_pump_sizing` and checks result = 16.835017 HP
-
-**Requirements:** Linux x86-64, Ubuntu 20.04+, CPU with AVX2 (Intel Haswell 2013+ / AMD Zen+)
-
-### Build from source (manual)
-
-```bash
-git clone https://github.com/condesi/crysl
-cd crysl
-RUSTFLAGS="-C target-cpu=native" cargo build --release
-./target/release/crysl serve ./stdlib/all_domains.crys 9001
-```
-
-### systemd service
-
-```ini
-[Unit]
-Description=CRYS-L Plan Engine
-After=network.target
-
-[Service]
-Environment=QOMNI_PATCH_ENABLED=0
-Type=simple
-User=root
-WorkingDirectory=/opt/crysl
-ExecStart=/usr/local/bin/crysl serve /opt/crysl/stdlib/all_domains.crys 9001
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-```
-
-## Language Reference
-
-### Oracle declaration
-
-```
-oracle name(param1: type, ...) -> return_type:
-    let x = expression
-    x
-```
-
-### Types
-
-| Type | Description |
-|------|-------------|
-| `float` | IEEE 754 double precision |
-| `int` | 64-bit signed integer |
-| `string` | UTF-8 |
-| `Vec2/3/4` | Float vectors |
-| `Mat3/4` | Float matrices (row-major) |
-
-### Branchless pattern
-
-```
-# Comparisons return float 0.0 or 1.0
-let valid = (flow >= 0.1) * (flow <= 50000.0) * (eff >= 0.10)
-# valid = 1.0 if all conditions true, 0.0 if any false
-let result = computation * valid  # masks invalid outputs without branching
-```
-
-## Engineering Domains
-
-- **Fire Protection**: NFPA 20 (pump sizing), NFPA 13 (sprinklers), NFPA 72 (detectors), NFPA 101 (egress)
-- **Electrical**: voltage drop (1ph/3ph), load current, transformer sizing, conductor resistance
-- **Hydraulics**: Hazen-Williams, Darcy-Weisbach, Manning flow, pipe velocity
-- **Structural**: beam deflection (UDL), Terzaghi bearing capacity
-- **Linear Algebra**: Vec2/3/4, Mat3/4, dot, cross, norm, normalize, matmul, det
-
-## REST API
-
-Full documentation: [API Docs](https://qomni.clanmarketer.com/crysl/demo/papers/papers_index.html)
-
-Base URL: `https://qomni.clanmarketer.com/crysl/api`
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Server status |
-| `/eval` | POST | Evaluate expression |
-| `/plan/execute` | POST | Execute named plan |
-| `/compile` | POST | Compile to LLVM/WASM |
-| `/plans` | GET | List available plans |
-| `/simulation/simd_density` | GET | SIMD benchmark proof |
-| `/benchmark/all` | GET | All 4 proofs |
-| `/ws/sim` | WS | Real-time Pareto stream |
-
-## Papers
-
-- [Full Technical Paper](https://qomni.clanmarketer.com/crysl/demo/papers/01_main_paper.md)
-- [API Documentation](https://qomni.clanmarketer.com/crysl/demo/papers/03_api_docs.md)
-- [Papers Index](https://qomni.clanmarketer.com/crysl/demo/papers/papers_index.html)
-- [Language Specification (SPEC.md)](https://github.com/condesi/crysl-lang/blob/main/SPEC.md)
-- [Originality Statement](https://github.com/condesi/crysl-lang/blob/main/ORIGINALITY.md)
-
-## About
-
-CRYS-L is the deterministic compute substrate of **Qomni** — a hybrid neuro-symbolic AI platform for engineering decision support.
-
-- **Author**: Percy Rojas Masgo — [percy.rojas@condesi.pe](mailto:percy.rojas@condesi.pe)
-- **Organization**: Qomni AI Lab · Condesi Perú
-- **License**: Apache 2.0
+Percy Rojas Masgo — Condesi Perú / Qomni AI Lab  
+percy.rojas@condesi.pe  
+https://qomni.clanmarketer.com/crysl/demo/benchmark.html
