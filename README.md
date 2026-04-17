@@ -163,6 +163,8 @@ Base URL: `https://qomni.clanmarketer.com/crysl/api`
 - [Full Technical Paper](https://qomni.clanmarketer.com/crysl/demo/papers/01_main_paper.md)
 - [API Documentation](https://qomni.clanmarketer.com/crysl/demo/papers/03_api_docs.md)
 - [Papers Index](https://qomni.clanmarketer.com/crysl/demo/papers/papers_index.html)
+- [Language Specification (SPEC.md)](https://github.com/condesi/crysl-lang/blob/main/SPEC.md)
+- [Originality Statement](https://github.com/condesi/crysl-lang/blob/main/ORIGINALITY.md)
 
 ## About
 
