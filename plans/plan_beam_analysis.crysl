@@ -1,0 +1,47 @@
+// CRYS-L v2.3 — Simply Supported Beam Analysis (Point Load at Midspan)
+// Standard: AISC 360-22 / ACI 318-19
+
+plan_beam_analysis(P: f64, L: f64, E: f64 = 200e9, I: f64) {
+    meta {
+        standard: "AISC 360-22",
+        source:   "Chapter C / Appendix 1",
+        domain:   "structural",
+        version:  "2.3",
+    }
+
+    // Maximum moment at midspan: M = P × L / 4
+    let M_max = P * L / 4.0;
+
+    // Maximum shear at supports: V = P / 2
+    let V_max = P / 2.0;
+
+    // Maximum deflection at midspan: δ = P × L³ / (48 × E × I)
+    let delta_max = (P * L * L * L) / (48.0 * E * I);
+
+    // Deflection limit: L/360 for live load (AISC)
+    const DEFL_RATIO = 360.0;
+    let delta_limit  = L / DEFL_RATIO;
+    let defl_ok      = delta_max <= delta_limit;
+
+    formula "Max moment":    "M = P x L / 4  [N·m]";
+    formula "Max shear":     "V = P / 2       [N]";
+    formula "Max deflection":"delta = P x L³ / (48 x E x I)  [m]";
+    formula "Defl limit":    "delta_lim = L / 360  [AISC live load]";
+
+    assert P > 0.0  msg "load must be positive";
+    assert L > 0.0  msg "span must be positive";
+    assert E > 0.0  msg "elastic modulus must be positive";
+    assert I > 0.0  msg "moment of inertia must be positive";
+
+    output M_max       label "Max Bending Moment" unit "N.m";
+    output V_max       label "Max Shear"           unit "N";
+    output delta_max   label "Max Deflection"      unit "m";
+    output delta_limit label "Deflection Limit"    unit "m";
+
+    return {
+        M_max:       M_max,
+        V_max:       V_max,
+        delta_max:   delta_max,
+        delta_limit: delta_limit,
+    };
+}

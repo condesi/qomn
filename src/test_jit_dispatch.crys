@@ -1,0 +1,13 @@
+# Test: oracle call dispatch via JIT
+oracle cuadrado(x: f32) -> f32:
+    return x * x
+
+oracle hipotenusa(a: f32, b: f32) -> f32:
+    return (a*a + b*b)^0.5
+
+# Top-level program: call oracles and respond
+let q = cuadrado(7.0)
+respond q
+
+let h = hipotenusa(3.0, 4.0)
+respond h

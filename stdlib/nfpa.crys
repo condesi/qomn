@@ -1,0 +1,92 @@
+// CRYS-L Standard Library — Fire Protection (NFPA)
+// Percy Rojas M. · Qomni AI Lab · 2026
+// Universal domain: fire protection, sprinklers, pumps, alarms, egress
+// Standards: NFPA 13, 20, 72, 101
+
+// ── Core plan oracles (positions 1-6, JIT-safe) ───────────────────────
+
+oracle nfpa13_area_density(area_ft2: float) -> float:
+    // Ordinary Hazard Group 1: 0.15 gpm/ft2
+    return 0.15
+
+oracle nfpa13_sprinkler(K: float, P: float) -> float:
+    // Q = K * sqrt(P)  [K-factor * sqrt(pressure)]
+    return K * (P ^ 0.5)
+
+oracle nfpa13_sprinkler_count(area_ft2: float, coverage_per_head: float) -> float:
+    // n = area / coverage_per_head
+    return area_ft2 / coverage_per_head
+
+oracle nfpa13_demand_flow(density: float, area_ft2: float, hose_stream: float) -> float:
+    // Q_total = density * area + hose_stream
+    return density * area_ft2 + hose_stream
+
+oracle nfpa20_pump_hp(Q: float, P: float, eff: float) -> float:
+    // HP = Q * P / (3960 * eff)
+    return Q * P / (3960.0 * eff)
+
+oracle nfpa72_detector_count(area_ft2: float, spacing_ft: float) -> float:
+    // n = area / spacing^2
+    return area_ft2 / (spacing_ft * spacing_ft)
+
+// ── Additional oracles ────────────────────────────────────────────────
+
+oracle nfpa13_pressure_demand(Q: float, K: float) -> float:
+    // P = (Q/K)^2  inverse K-factor equation
+    return (Q / K) * (Q / K)
+
+oracle nfpa13_head_loss(Q: float, C: float, D: float, L: float) -> float:
+    // Hazen-Williams: h_f = 4.52 * Q^1.85 / (C^1.85 * D^4.87) * L
+    return 4.52 * (Q ^ 1.85) / ((C ^ 1.85) * (D ^ 4.87)) * L
+
+oracle nfpa20_head_pressure(h_ft: float) -> float:
+    // P = h * 0.433  [psi, from ft head]
+    return h_ft * 0.433
+
+oracle nfpa20_shutoff_pressure(rated_P: float) -> float:
+    // Max shutoff = 140% of rated (NFPA 20)
+    return rated_P * 1.4
+
+oracle nfpa20_150pct_flow(rated_Q: float) -> float:
+    // At 150% flow, pressure >= 65% rated (NFPA 20)
+    return rated_Q * 1.5
+
+oracle nfpa72_detector_coverage(ceiling_h: float) -> float:
+    // Max spacing = 0.7071 * 30 ft  (NFPA 72 Table 17.6.3.1)
+    return 21.213
+
+oracle nfpa72_beam_length(area_ft2: float, width_ft: float) -> float:
+    // Beam detector: path length = area / width
+    return area_ft2 / width_ft
+
+oracle nfpa101_egress_capacity(N: float, flow_rate: float) -> float:
+    // t = N / flow_rate  [persons / (persons/min) = minutes]
+    return N / flow_rate
+
+oracle nfpa101_travel_distance(dist_m: float, max_m: float) -> float:
+    // Returns ratio max/dist (>1.0 means compliant)
+    return max_m / dist_m
+
+oracle nfpa101_exit_width(N: float, width_factor: float) -> float:
+    // Required exit width = N / width_factor  (width_factor: persons per inch)
+    return N / width_factor
+
+// ── Plans ─────────────────────────────────────────────────────────────
+
+plan plan_sprinkler_system(area_ft2: float, K: float, P_avail: float, hose_stream: float):
+    step density:      nfpa13_area_density(area_ft2)
+    step Q_per_head:   nfpa13_sprinkler(K, P_avail)
+    step n_heads:      nfpa13_sprinkler_count(area_ft2, 130.0)
+    step Q_demand:     nfpa13_demand_flow(density, area_ft2, hose_stream)
+    step pump_hp:      nfpa20_pump_hp(Q_demand, P_avail, 0.70)
+    step detectors:    nfpa72_detector_count(area_ft2, 50.0)
+
+plan plan_pump_sizing(Q_gpm: float, P_psi: float, eff: float):
+    step hp_required:  nfpa20_pump_hp(Q_gpm, P_psi, eff)
+    step shutoff_p:    nfpa20_shutoff_pressure(P_psi)
+    step flow_150pct:  nfpa20_150pct_flow(Q_gpm)
+    step head_ft:      nfpa20_head_pressure(P_psi)
+
+plan plan_egress(N_persons: float, exits: float, door_width_in: float):
+    step egress_time:  nfpa101_egress_capacity(N_persons, 60.0)
+    step exit_width:   nfpa101_exit_width(N_persons, 5.0)

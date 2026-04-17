@@ -1,0 +1,33 @@
+// CRYS-L v2.3 — NFPA 20 Fire Pump Sizing
+// plan_pump_sizing: computes required BHP for a fire pump
+// Standard: NFPA 20:2022 Section 4.26
+
+plan_pump_sizing(Q_gpm: f64, P_psi: f64, eff: f64 = 0.70) {
+    meta {
+        standard: "NFPA 20:2022",
+        source:   "Section 4.26",
+        domain:   "fire",
+        version:  "2.3",
+    }
+    const HP_FACTOR = 3960.0;
+
+    // Brake horsepower at rated point
+    let HP_req = (Q_gpm * P_psi) / (eff * HP_FACTOR);
+
+    // Maximum at shutoff: ≤ 140% of rated BHP (NFPA 20 §4.26.2)
+    let HP_max = HP_req * 1.40;
+
+    formula "Pump BHP": "HP = (Q[GPM] x P[PSI]) / (eta x 3960)";
+    formula "Shutoff BHP": "HP_max = HP_req x 1.40  [NFPA 20 §4.26.2]";
+
+    assert Q_gpm > 0.0   msg "flow must be positive";
+    assert P_psi > 0.0   msg "pressure must be positive";
+    assert eff > 0.0     msg "efficiency must be positive";
+    assert eff <= 1.0    msg "efficiency must be <= 1.0";
+    assert HP_req > 0.0  msg "computed HP must be positive";
+
+    output HP_req label "Pump BHP (rated)"   unit "HP";
+    output HP_max label "Pump BHP (shutoff)" unit "HP";
+
+    return { HP_req: HP_req, HP_max: HP_max };
+}

@@ -1,0 +1,55 @@
+// CRYS-L v2.3 — Factura Electrónica Peruana (SUNAT)
+// Cálculo de IGV, ISC y monto total según régimen tributario peruano
+// Standard: DL 821 (Ley del IGV), SUNAT Resolución 007-99/SUNAT
+
+plan_factura_peru(base_imponible: f64, descuento: f64 = 0.0, isc: f64 = 0.0) {
+    meta {
+        standard: "DL 821 / SUNAT",
+        source:   "Resolucion 007-99-SUNAT",
+        domain:   "financial",
+        version:  "2.3",
+    }
+
+    // Tasas SUNAT vigentes 2024-2026
+    const IGV_RATE  = 0.18;   // Impuesto General a las Ventas 18%
+    const IPM_RATE  = 0.02;   // Impuesto de Promoción Municipal (incluido en IGV 18%)
+
+    // Base imponible neta (después de descuento)
+    let base_neta = base_imponible - descuento;
+
+    // ISC (Impuesto Selectivo al Consumo) — varía por producto
+    let monto_isc = base_neta * isc;
+    let base_con_isc = base_neta + monto_isc;
+
+    // IGV sobre base + ISC
+    let monto_igv = base_con_isc * IGV_RATE;
+
+    // Total factura
+    let total = base_con_isc + monto_igv;
+
+    // Precio unitario estimado (si la base es 1 unidad)
+    let precio_con_igv = base_imponible * (1.0 + IGV_RATE);
+
+    formula "IGV": "18% x (base + ISC)  [DL 821]";
+    formula "Total": "base_neta + ISC + IGV";
+
+    assert base_imponible > 0.0  msg "base imponible debe ser positiva";
+    assert descuento >= 0.0      msg "descuento debe ser >= 0";
+    assert descuento < base_imponible msg "descuento no puede superar base imponible";
+    assert isc >= 0.0            msg "tasa ISC debe ser >= 0";
+    assert base_neta > 0.0      msg "base neta debe ser positiva";
+
+    output base_neta      label "Base Imponible Neta"    unit "PEN";
+    output monto_isc      label "ISC"                    unit "PEN";
+    output monto_igv      label "IGV (18%)"              unit "PEN";
+    output total          label "Total Factura"          unit "PEN";
+    output precio_con_igv label "Precio con IGV"         unit "PEN";
+
+    return {
+        base_neta:      base_neta,
+        monto_isc:      monto_isc,
+        monto_igv:      monto_igv,
+        total:          total,
+        precio_con_igv: precio_con_igv,
+    };
+}

@@ -1,0 +1,61 @@
+// CRYS-L v2.3 — NFPA 13 Automatic Sprinkler System Sizing
+// Standard: NFPA 13:2022
+
+plan_sprinkler_system(area_ft2: f64, K: f64, P_avail: f64, hose_stream: f64 = 250.0) {
+    meta {
+        standard: "NFPA 13:2022",
+        source:   "Section 11.2.3",
+        domain:   "fire",
+        version:  "2.3",
+    }
+
+    // Design density: 0.15 GPM/ft² for light hazard (NFPA 13 Table 11.2.3.1.1)
+    const DENSITY    = 0.15;
+    const SQ_FT_PER_HEAD = 130.0;
+    const HP_FACTOR  = 3960.0;
+    const EFF        = 0.70;
+
+    // Required flow for design area
+    let Q_demand = area_ft2 * DENSITY;
+
+    // Number of sprinkler heads in design area
+    let n_heads = area_ft2 / SQ_FT_PER_HEAD;
+
+    // Flow per head (K-factor formula: Q = K√P)
+    let Q_per_head = K * 3.873;
+
+    // Total system demand including hose allowance
+    let Q_total = Q_demand + hose_stream;
+
+    // Pump HP required
+    let HP_req = (Q_total * P_avail) / (EFF * HP_FACTOR);
+
+    // Detector coverage: one detector per 130 ft² (NFPA 72)
+    let n_detectors = area_ft2 / 130.0;
+
+    formula "K-factor flow": "Q = K x sqrt(P)  [NFPA 13 §6.2.1]";
+    formula "Design flow":   "Q_demand = area x density  [NFPA 13 §11.2.3]";
+    formula "Pump HP":       "HP = (Q_total x P) / (0.70 x 3960)";
+
+    assert area_ft2 > 0.0   msg "area must be positive";
+    assert K > 0.0           msg "K-factor must be positive";
+    assert P_avail > 0.0     msg "available pressure must be positive";
+    assert hose_stream >= 0.0 msg "hose allowance must be non-negative";
+    assert n_heads >= 1.0   msg "design area must cover at least 1 head";
+
+    output Q_demand    label "Design Area Flow"    unit "GPM";
+    output n_heads     label "Sprinkler Heads"     unit "heads";
+    output Q_per_head  label "Flow per Head"       unit "GPM";
+    output Q_total     label "Total System Demand" unit "GPM";
+    output HP_req      label "Pump HP Required"    unit "HP";
+    output n_detectors label "Smoke Detectors"     unit "units";
+
+    return {
+        Q_demand:    Q_demand,
+        n_heads:     n_heads,
+        Q_per_head:  Q_per_head,
+        Q_total:     Q_total,
+        HP_req:      HP_req,
+        n_detectors: n_detectors,
+    };
+}

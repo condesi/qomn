@@ -1,0 +1,33 @@
+# Build output
+target/
+compiled/
+crysl-bin/
+
+# Backup files
+*.bak
+*.pre-*
+*.pre-turbo*
+*.pre-aot
+*.pre-l4
+*.pre-turbo
+*.pre-turbo2
+
+# Runtime/temp files
+tmp_*.py
+patch_*.py
+crawler.py
+dkp_crawler.py
+new_start.txt
+data/
+memory/
+tmp/
+*.log
+
+# Secrets
+.env
+*.key
+*.pem
+
+# Editor
+.vscode/
+.idea/

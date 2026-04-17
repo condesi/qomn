@@ -1,0 +1,26 @@
+[package]
+name    = "crysl"
+version = "0.1.6"
+edition = "2021"
+description = "CRYS-L compiler — Crystal Language for ternary AI inference"
+authors = ["Percy Rojas Masgo <percy@condesi.pe>"]
+license = "Apache-2.0"
+
+[[bin]]
+name = "crysl"
+path = "src/main.rs"
+
+[lib]
+name = "crysl_lib"
+path = "src/lib.rs"
+
+[dependencies]
+# v1.6: Cranelift JIT — oracle bodies → native x86-64
+cranelift-codegen  = "0.113"
+cranelift-frontend = "0.113"
+cranelift-jit      = "0.113"
+cranelift-module   = "0.113"
+
+[features]
+# Build without JIT (stdlib only, max portability)
+no-jit = []

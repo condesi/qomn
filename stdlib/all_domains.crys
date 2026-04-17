@@ -1,0 +1,1009 @@
+// CRYS-L Multi-Domain Stdlib — All Domains
+// Percy Rojas M. · Qomni AI Lab · Condesi Perú · 2026
+// Dominios: fire_protection, hydraulics, electrical, civil, accounting_peru, legal_peru
+// ══════════════════════════════════════════════════════════════════════
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FIRE PROTECTION — NFPA 13 / 20 / 72 / 101
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle nfpa13_area_density(area_ft2: float) -> float:
+    return 0.15
+
+oracle nfpa13_sprinkler(K: float, P: float) -> float:
+    return K * (P ^ 0.5)
+
+oracle nfpa13_sprinkler_count(area_ft2: float, coverage_per_head: float) -> float:
+    return area_ft2 / coverage_per_head
+
+oracle nfpa13_demand_flow(density: float, area_ft2: float, hose_stream: float) -> float:
+    return density * area_ft2 + hose_stream
+
+oracle nfpa20_pump_hp(Q: float, P: float, eff: float) -> float:
+    return Q * P / (3960.0 * eff)
+
+oracle nfpa20_shutoff_pressure(rated_P: float) -> float:
+    return rated_P * 1.4
+
+oracle nfpa20_150pct_flow(rated_Q: float) -> float:
+    return rated_Q * 1.5
+
+oracle nfpa20_head_pressure(h_ft: float) -> float:
+    return h_ft * 0.433
+
+oracle nfpa72_detector_count(area_ft2: float, spacing_ft: float) -> float:
+    return area_ft2 / (spacing_ft * spacing_ft)
+
+oracle nfpa101_egress_capacity(N: float, flow_rate: float) -> float:
+    return N / flow_rate
+
+oracle nfpa101_exit_width(N: float, factor: float) -> float:
+    return N / factor
+
+plan plan_sprinkler_system(area_ft2: float, K: float, P_avail: float, hose_stream: float):
+    step density:    nfpa13_area_density(area_ft2)
+    step Q_per_head: nfpa13_sprinkler(K, P_avail)
+    step n_heads:    nfpa13_sprinkler_count(area_ft2, 130.0)
+    step Q_demand:   nfpa13_demand_flow(density, area_ft2, hose_stream)
+    step pump_hp:    nfpa20_pump_hp(Q_demand, P_avail, 0.70)
+    step detectors:  nfpa72_detector_count(area_ft2, 50.0)
+
+plan plan_pump_sizing(Q_gpm: float, P_psi: float, eff: float):
+    step hp_required: nfpa20_pump_hp(Q_gpm, P_psi, eff)
+    step shutoff_p:   nfpa20_shutoff_pressure(P_psi)
+    step flow_150pct: nfpa20_150pct_flow(Q_gpm)
+    step head_ft:     nfpa20_head_pressure(P_psi)
+
+plan plan_egress(N_persons: float, exits: float, door_width_in: float):
+    step egress_time: nfpa101_egress_capacity(N_persons, 60.0)
+    step exit_width:  nfpa101_exit_width(N_persons, 5.0)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HYDRAULICS — Manning / Hazen-Williams / Darcy-Weisbach
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle pipe_area(D: float) -> float:
+    return 0.7854 * D * D
+
+oracle manning_flow(n: float, A: float, R: float, S: float) -> float:
+    return (1.0 / n) * A * (R ^ 0.6667) * (S ^ 0.5)
+
+oracle hazen_williams_velocity(C: float, R: float, S: float) -> float:
+    return 0.849 * C * (R ^ 0.63) * (S ^ 0.54)
+
+oracle pipe_velocity(Q: float, D: float) -> float:
+    return Q / (0.7854 * D * D)
+
+oracle pipe_reynolds(v: float, D: float, nu: float) -> float:
+    return v * D / nu
+
+oracle darcy_head_loss(f: float, L: float, D: float, v: float) -> float:
+    return f * (L / D) * (v * v) / (2.0 * 9.81)
+
+oracle hazen_williams_hf(Q: float, C: float, D: float, L: float) -> float:
+    return 10.67 * L * (Q ^ 1.852) / ((C ^ 1.852) * (D ^ 4.87))
+
+plan plan_pipe_manning(n: float, D: float, S: float):
+    step area:      pipe_area(D)
+    step Q_m3s:     manning_flow(n, area, D, S)
+    step velocity:  pipe_velocity(Q_m3s, D)
+    step Re:        pipe_reynolds(velocity, D, 0.000001)
+
+plan plan_pipe_hazen(Q: float, C: float, D: float, L: float):
+    step h_loss:    hazen_williams_hf(Q, C, D, L)
+    step velocity:  pipe_velocity(Q, D)
+    step area:      pipe_area(D)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ELECTRICAL — IEC 60038 / NEC / CNE Peru
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle voltage_drop(I: float, L: float, rho: float, A: float) -> float:
+    return 2.0 * I * L * rho / A
+
+oracle voltage_drop_3ph(I: float, L: float, rho: float, A: float) -> float:
+    return 1.7321 * I * L * rho / A
+
+oracle load_current_1ph(P_w: float, V: float, pf: float) -> float:
+    return P_w / (V * pf)
+
+oracle load_current_3ph(P_w: float, V: float, pf: float) -> float:
+    return P_w / (1.7321 * V * pf)
+
+oracle apparent_power(P_w: float, pf: float) -> float:
+    return P_w / pf
+
+oracle reactive_power(P_w: float, pf: float) -> float:
+    let sin_phi: float = (1.0 - pf * pf) ^ 0.5
+    return P_w * sin_phi / pf
+
+oracle transformer_rating(P_kw: float, pf: float, eff: float) -> float:
+    return P_kw / (pf * eff)
+
+oracle power_loss(I: float, R: float) -> float:
+    return I * I * R
+oracle conductor_resistance(rho: float, L: float, A: float) -> float:
+    // R = rho * L / A  [rho Ohm.mm2/m, A in mm2, L in m]
+    return rho * L / A
+
+oracle voltage_drop_pct(V_drop: float, V_nom: float) -> float:
+    // pct = V_drop / V_nom * 100
+    return V_drop / V_nom * 100.0
+
+oracle short_circuit_current(V: float, Z: float) -> float:
+    return V / Z
+
+oracle capacitor_kvar(P_kw: float, pf_current: float, pf_target: float) -> float:
+    let q1: float = (1.0 - pf_current * pf_current) ^ 0.5 / pf_current
+    let q2: float = (1.0 - pf_target * pf_target) ^ 0.5 / pf_target
+    return P_kw * (q1 - q2)
+
+plan plan_electrical_load(P_w: float, V: float, pf: float, L: float, A: float):
+    step I_load:     load_current_1ph(P_w, V, pf)
+    step S_apparent: apparent_power(P_w, pf)
+    step Q_reactive: reactive_power(P_w, pf)
+    step dV:         voltage_drop(I_load, L, 0.0172, A)
+    step R_cond:   conductor_resistance(0.0172, L, A)
+    step P_loss:     power_loss(I_load, R_cond)
+
+plan plan_electrical_3ph(P_kw: float, V: float, pf: float, L: float, A: float):
+    // P_kw in kW, oracles expect W => multiply by 1000
+    step I_load:     load_current_3ph(P_kw * 1000.0, V, pf)
+    step S_kva:      apparent_power(P_kw * 1000.0, pf)
+    step Q_kvar:     reactive_power(P_kw * 1000.0, pf)
+    step dV_3ph:     voltage_drop_3ph(I_load, L, 0.0172, A)
+    step R_cond:   conductor_resistance(0.0172, L, A)
+    step drop_pct: voltage_drop_pct(dV_3ph, V)
+    step P_loss:     power_loss(I_load, R_cond)
+
+plan plan_transformer(P_kw: float, pf: float, eff: float):
+    step kva_rating: transformer_rating(P_kw, pf, eff)
+    step I_primario: load_current_1ph(P_kw, 10000.0, pf)
+    step I_secund:   load_current_1ph(P_kw, 220.0, pf)
+
+plan plan_power_factor_correction(P_kw: float, pf_actual: float, pf_meta: float):
+    step Q_actual:   reactive_power(P_kw, pf_actual)
+    step Q_meta:     reactive_power(P_kw, pf_meta)
+    step kvar_banco: capacitor_kvar(P_kw, pf_actual, pf_meta)
+
+plan plan_voltage_drop(I: float, L_m: float, A_mm2: float):
+    // IEC 60364-5-52/NEC 310 - copper rho=0.0172 Ohm.mm2/m single-phase
+    step V_drop:   voltage_drop(I, L_m, 0.0172, A_mm2)
+    step R_line:   conductor_resistance(0.0172, L_m, A_mm2)
+    step P_loss_w: power_loss(I, R_line)
+    step drop_pct: voltage_drop_pct(V_drop, 220.0)
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CIVIL / ESTRUCTURAL — ACI 318 / E060 Peru / AISC
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle beam_deflection(P: float, L: float, E: float, I: float) -> float:
+    return P * (L ^ 3.0) / (48.0 * E * I)
+
+oracle beam_moment(P: float, L: float) -> float:
+    return P * L / 4.0
+
+oracle beam_shear(P: float) -> float:
+    return P / 2.0
+
+oracle column_buckling(E: float, I: float, L: float, K: float) -> float:
+    return 9.8696 * E * I / ((K * L) * (K * L))
+
+oracle concrete_capacity(fc: float, As: float, b: float, d: float) -> float:
+    return As * 420.0 * (d - As * 420.0 / (1.7 * fc * b))
+
+oracle soil_bearing(q_allow: float, B: float, L: float) -> float:
+    return q_allow * B * L
+
+oracle slab_moment(q: float, L: float) -> float:
+    return q * (L ^ 2.0) / 8.0
+
+oracle rebar_area(n_bars: float, diam_cm: float) -> float:
+    return n_bars * 0.7854 * diam_cm * diam_cm
+
+plan plan_beam_analysis(P_kn: float, L_m: float, E_gpa: float, I_cm4: float):
+    step Mmax:   beam_moment(P_kn, L_m)
+    step Vmax:   beam_shear(P_kn)
+    step delta:  beam_deflection(P_kn, L_m, E_gpa, I_cm4)
+
+plan plan_column_design(P_kn: float, L_m: float, b_cm: float, h_cm: float):
+    step Pcr_euler: column_buckling(200000.0, b_cm, L_m, 1.0)
+    step As_min:    rebar_area(4.0, 1.6)
+    step cap_conc:  concrete_capacity(28.0, As_min, b_cm, h_cm)
+
+plan plan_footing(q_allow: float, B: float, L: float):
+    step P_allow:  soil_bearing(q_allow, B, L)
+    step Mftg:     slab_moment(q_allow, B)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ACCOUNTING PERU — IGV, Planillas, Ratios Financieros
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle igv(base: float) -> float:
+    return base * 0.18
+
+oracle precio_con_igv(base: float) -> float:
+    return base * 1.18
+
+oracle base_imponible(precio_venta: float) -> float:
+    return precio_venta / 1.18
+
+oracle impuesto_renta_3ra(utilidad: float) -> float:
+    return utilidad * 0.295
+
+oracle detraccion_construccion(monto: float) -> float:
+    return monto * 0.04
+
+oracle detraccion_servicios(monto: float) -> float:
+    return monto * 0.12
+
+oracle retencion_renta_4ta(honorario: float) -> float:
+    return honorario * 0.08
+
+oracle essalud_empleador(sueldo: float) -> float:
+    return sueldo * 0.09
+
+oracle afp_aporte(sueldo: float) -> float:
+    return sueldo * 0.10
+
+oracle gratificacion_mensual(sueldo: float) -> float:
+    return sueldo / 6.0
+
+oracle cts_mensual(sueldo: float, grat_mensual: float) -> float:
+    return (sueldo + grat_mensual) / 12.0
+
+oracle vacaciones_tasa(sueldo: float) -> float:
+    return sueldo / 12.0
+
+oracle liquidez_corriente(activo_corriente: float, pasivo_corriente: float) -> float:
+    return activo_corriente / pasivo_corriente
+
+oracle margen_neto(utilidad_neta: float, ventas: float) -> float:
+    return utilidad_neta / ventas
+
+oracle roe(utilidad_neta: float, patrimonio: float) -> float:
+    return utilidad_neta / patrimonio
+
+oracle depreciacion_lineal(costo: float, vida_util: float, valor_residual: float) -> float:
+    return (costo - valor_residual) / vida_util
+
+plan plan_factura_peru(base_imponible: float):
+    step igv_amount:    igv(base_imponible)
+    step total:         precio_con_igv(base_imponible)
+    step detrac:        detraccion_construccion(base_imponible)
+
+plan plan_planilla(sueldo: float):
+    step essalud:       essalud_empleador(sueldo)
+    step afp:           afp_aporte(sueldo)
+    step grat_mensual:  gratificacion_mensual(sueldo)
+    step cts_mes:       cts_mensual(sueldo, grat_mensual)
+    step vacac:         vacaciones_tasa(sueldo)
+
+plan plan_ratios_financieros(activo_c: float, pasivo_c: float, utilidad: float, ventas: float, patrimonio: float):
+    step liquidez:      liquidez_corriente(activo_c, pasivo_c)
+    step margen:        margen_neto(utilidad, ventas)
+    step roe_ret:       roe(utilidad, patrimonio)
+    step ir_3ra:        impuesto_renta_3ra(utilidad)
+
+plan plan_depreciacion(costo: float, vida_util: float, valor_residual: float):
+    step anual:         depreciacion_lineal(costo, vida_util, valor_residual)
+    step mensual:       depreciacion_lineal(costo, vida_util, valor_residual)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// LEGAL PERU — Multas SUNAFIL, CTS, Liquidaciones Laborales
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle uit_actual() -> float:
+    return 5350.0
+
+oracle remuneracion_minima() -> float:
+    return 1025.0
+
+oracle multa_sunafil_grave(uit: float) -> float:
+    return uit * 10.0
+
+oracle multa_sunafil_muy_grave(uit: float) -> float:
+    return uit * 20.0
+
+oracle liquidacion_vacaciones(sueldo: float, dias_vac: float) -> float:
+    return sueldo / 30.0 * dias_vac
+
+oracle liquidacion_cts(sueldo: float, meses: float) -> float:
+    return sueldo / 6.0 / 12.0 * meses * 1.1667
+
+oracle indemnizacion_arbitraria(sueldo: float, meses_trab: float) -> float:
+    return sueldo * 1.5 * meses_trab
+
+oracle gratificacion_proporcional(sueldo: float, meses_sem: float) -> float:
+    return sueldo / 6.0 * meses_sem
+
+oracle bonificacion_grat(gratificacion: float) -> float:
+    return gratificacion * 0.09
+
+plan plan_liquidacion_laboral(sueldo: float, meses_trabajo: float, dias_vacac: float):
+    step cts:           liquidacion_cts(sueldo, meses_trabajo)
+    step vacaciones:    liquidacion_vacaciones(sueldo, dias_vacac)
+    step grat_prop:     gratificacion_proporcional(sueldo, meses_trabajo)
+    step bono_grat:     bonificacion_grat(grat_prop)
+    step indemn:        indemnizacion_arbitraria(sueldo, meses_trabajo)
+
+plan plan_multa_sunafil():
+    step uit:           uit_actual()
+    step multa_grave:   multa_sunafil_grave(uit)
+    step multa_mgrave:  multa_sunafil_muy_grave(uit)
+    step rmv:           remuneracion_minima()
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HYDRAULIC NETWORK — series pipe analysis (gpm/inch native input)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle hazen_hf_gpm_inch(Q_gpm: float, C: float, D_in: float, L_m: float) -> float:
+    let Q: float = Q_gpm * 0.0000630902
+    let D: float = D_in * 0.0254
+    return 10.67 * L_m * (Q ^ 1.852) / ((C ^ 1.852) * (D ^ 4.87))
+
+oracle hazen_node_psi(P_in_psi: float, hf_m: float) -> float:
+    return P_in_psi - hf_m * 1.42197
+
+oracle hazen_3seg_total_psi(hf_m: float) -> float:
+    return hf_m * 3.0 * 1.42197
+
+oracle hazen_P_at_gpm(Q_gpm: float, C: float, D_in: float, L_m: float, P_avail: float) -> float:
+    let Q: float = Q_gpm * 0.0000630902
+    let D: float = D_in * 0.0254
+    let hf: float = 10.67 * L_m * (Q ^ 1.852) / ((C ^ 1.852) * (D ^ 4.87))
+    return P_avail - hf * 1.42197
+
+oracle hazen_critical_q_gpm(P_avail: float, P_min: float, C: float, D_in: float, L_m: float) -> float:
+    let h_allow: float = (P_avail - P_min) * 0.70307
+    let D: float = D_in * 0.0254
+    let q_m3s: float = (h_allow * (C ^ 1.852) * (D ^ 4.87) / (10.67 * L_m)) ^ 0.5400
+    return q_m3s / 0.0000630902
+
+// ── Plan: 3-segment series pipe network ───────────────────────────────────
+
+plan plan_pipe_network_3(Q_gpm: float, P0_psi: float, C: float, D_in: float, L_m: float):
+    step hf_seg_m:       hazen_hf_gpm_inch(Q_gpm, C, D_in, L_m)
+    step P1_psi:         hazen_node_psi(P0_psi, hf_seg_m)
+    step P2_psi:         hazen_node_psi(P1_psi, hf_seg_m)
+    step P3_psi:         hazen_node_psi(P2_psi, hf_seg_m)
+    step total_loss_psi: hazen_3seg_total_psi(hf_seg_m)
+
+// ── Plan: pressure sweep — find critical Q analytically ───────────────────
+
+plan plan_hazen_sweep(P_avail_psi: float, P_min_psi: float, C: float, D_in: float, L_total_m: float):
+    step Q_crit_gpm:   hazen_critical_q_gpm(P_avail_psi, P_min_psi, C, D_in, L_total_m)
+    step P_at_100gpm:  hazen_P_at_gpm(100.0, C, D_in, L_total_m, P_avail_psi)
+    step P_at_500gpm:  hazen_P_at_gpm(500.0, C, D_in, L_total_m, P_avail_psi)
+    step P_at_1000gpm: hazen_P_at_gpm(1000.0, C, D_in, L_total_m, P_avail_psi)
+
+plan plan_hazen_critical_q(P_avail_psi: float, P_min_psi: float, C: float, D_in: float, L_total_m: float):
+    step Q_crit_gpm:   hazen_critical_q_gpm(P_avail_psi, P_min_psi, C, D_in, L_total_m)
+    step P_check_65:   hazen_P_at_gpm(Q_crit_gpm, C, D_in, L_total_m, P_avail_psi)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HVAC / CLIMATIZACIÓN — ASHRAE / IEC
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle hvac_cooling_load(area_m2: float, ceiling_h: float, ach: float, delta_t: float) -> float:
+    let vol: float = area_m2 * ceiling_h
+    return vol * ach / 3600.0 * 1.2 * 1.005 * delta_t
+
+oracle btu_to_tr(btu_h: float) -> float:
+    return btu_h / 12000.0
+
+oracle kw_to_tr(kw: float) -> float:
+    return kw * 0.28434
+
+oracle hvac_airflow_cfm(area_ft2: float, ach: float) -> float:
+    return area_ft2 * 8.0 * ach / 60.0
+
+oracle cop_to_eer(cop: float) -> float:
+    return cop * 3.412
+
+oracle dehumid_load(area_m2: float, occupants: float) -> float:
+    return (occupants * 75.0 + area_m2 * 10.0) / 1000.0
+
+plan plan_hvac_cooling(area_m2: float, ceiling_h: float, ach: float, delta_t: float, occupants: float):
+    step Q_sens_kw:  hvac_cooling_load(area_m2, ceiling_h, ach, delta_t)
+    step Q_lat_kw:   dehumid_load(area_m2, occupants)
+    step Q_total_kw: hvac_cooling_load(area_m2, ceiling_h, ach, delta_t)
+    step TR:         kw_to_tr(Q_total_kw)
+
+plan plan_hvac_ventilation(area_m2: float, ceiling_h: float, ach: float):
+    step Q_m3h: hvac_cooling_load(area_m2, ceiling_h, ach, 1.0)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SOLAR FOTOVOLTAICO — IEC 61215 / ASHRAE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle solar_panel_count(kwh_daily: float, hsp: float, panel_wp: float, eff: float) -> float:
+    return kwh_daily / (hsp * panel_wp / 1000.0 * eff)
+
+oracle solar_array_kw(n_panels: float, panel_wp: float) -> float:
+    return n_panels * panel_wp / 1000.0
+
+oracle solar_annual_kwh(kw_peak: float, hsp: float, eff: float) -> float:
+    return kw_peak * hsp * 365.0 * eff
+
+oracle solar_payback_years(cost_usd: float, kwh_year: float, tariff_usd_kwh: float) -> float:
+    return cost_usd / (kwh_year * tariff_usd_kwh)
+
+oracle solar_co2_avoided(kwh_year: float) -> float:
+    return kwh_year * 0.45 / 1000.0
+
+plan plan_solar_fv(kwh_daily: float, hsp: float, panel_wp: float, eff: float, cost_usd: float, tariff: float):
+    step n_panels:   solar_panel_count(kwh_daily, hsp, panel_wp, eff)
+    step kw_peak:    solar_array_kw(n_panels, panel_wp)
+    step kwh_year:   solar_annual_kwh(kw_peak, hsp, eff)
+    step payback_yr: solar_payback_years(cost_usd, kwh_year, tariff)
+    step co2_t_yr:   solar_co2_avoided(kwh_year)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMERCIO / NEGOCIOS — Análisis financiero comercial
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle markup_price(cost: float, markup_pct: float) -> float:
+    return cost * (1.0 + markup_pct / 100.0)
+
+oracle margin_pct(price: float, cost: float) -> float:
+    return (price - cost) / price * 100.0
+
+oracle break_even_units(fixed_cost: float, price: float, var_cost: float) -> float:
+    return fixed_cost / (price - var_cost)
+
+oracle break_even_revenue(fixed_cost: float, margin_pct_val: float) -> float:
+    return fixed_cost / (margin_pct_val / 100.0)
+
+oracle roi_pct(net_profit: float, investment: float) -> float:
+    return net_profit / investment * 100.0
+
+oracle cac(marketing_spend: float, new_customers: float) -> float:
+    return marketing_spend / new_customers
+
+oracle ltv(avg_purchase: float, freq_year: float, retention_years: float) -> float:
+    return avg_purchase * freq_year * retention_years
+
+plan plan_break_even(fixed_cost: float, price: float, var_cost: float):
+    step margin:     margin_pct(price, var_cost)
+    step units_be:   break_even_units(fixed_cost, price, var_cost)
+    step revenue_be: break_even_revenue(fixed_cost, margin)
+
+plan plan_pricing(cost: float, markup_pct: float):
+    step price:      markup_price(cost, markup_pct)
+    step margin:     margin_pct(price, cost)
+
+plan plan_roi(net_profit: float, investment: float):
+    step roi: roi_pct(net_profit, investment)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FINANZAS — VPN, TIR aproximada, Amortización, Interés
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle compound_interest(P: float, r: float, n: float) -> float:
+    return P * ((1.0 + r) ^ n)
+
+oracle simple_interest(P: float, r_pct: float, n: float) -> float:
+    return P * r_pct / 100.0 * n
+
+oracle loan_payment(P: float, r_monthly: float, n_months: float) -> float:
+    let rn: float = (1.0 + r_monthly) ^ n_months
+    return P * r_monthly * rn / (rn - 1.0)
+
+oracle total_interest(pmt: float, n_months: float, P: float) -> float:
+    return pmt * n_months - P
+
+oracle npv_2period(cf0: float, cf1: float, cf2: float, r: float) -> float:
+    return cf0 + cf1 / (1.0 + r) + cf2 / ((1.0 + r) * (1.0 + r))
+
+plan plan_loan_amortization(P: float, r_monthly: float, n_months: float):
+    step pmt:        loan_payment(P, r_monthly, n_months)
+    step total_paid: compound_interest(pmt, n_months, 0.0)
+    step interest:   total_interest(pmt, n_months, P)
+
+plan plan_compound_interest(P: float, r_decimal: float, years: float):
+    step A:    compound_interest(P, r_decimal, years)
+    step gain: simple_interest(P, r_decimal, years)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SALUD / MEDICINA — Indicadores clínicos básicos
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle bmi(weight_kg: float, height_m: float) -> float:
+    return weight_kg / (height_m * height_m)
+
+oracle ideal_weight_kg(height_m: float) -> float:
+    return 50.0 + 2.3 * (height_m * 100.0 / 2.54 - 60.0)
+
+oracle drug_dose(weight_kg: float, dose_mg_per_kg: float) -> float:
+    return weight_kg * dose_mg_per_kg
+
+oracle caloric_need_bmr(weight_kg: float, height_cm: float, age: float) -> float:
+    return 10.0 * weight_kg + 6.25 * height_cm - 5.0 * age + 5.0
+
+oracle egfr_ckd_epi(creatinine: float, age: float) -> float:
+    let ratio: float = creatinine / 0.9
+    let base: float = 0.993 ^ age
+    return 141.0 * base * (ratio ^ -0.411)
+
+plan plan_bmi_assessment(weight_kg: float, height_m: float, age: float):
+    step bmi_val:    bmi(weight_kg, height_m)
+    step ideal_wt:   ideal_weight_kg(height_m)
+
+plan plan_drug_dosing(weight_kg: float, dose_mg_per_kg: float, frequency_per_day: float):
+    step single_dose: drug_dose(weight_kg, dose_mg_per_kg)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MECÁNICA / MOTORES — Torque, Potencia, Transmisiones
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle torque_nm(power_kw: float, rpm: float) -> float:
+    return power_kw * 1000.0 / (2.0 * 3.14159 * rpm / 60.0)
+
+oracle power_from_torque(torque_nm: float, rpm: float) -> float:
+    return torque_nm * 2.0 * 3.14159 * rpm / 60000.0
+
+oracle gear_ratio(n_input: float, n_output: float) -> float:
+    return n_input / n_output
+
+oracle output_torque(input_torque: float, ratio: float, eff: float) -> float:
+    return input_torque * ratio * eff
+
+oracle belt_tension(power_kw: float, v_ms: float) -> float:
+    return power_kw * 1000.0 / v_ms
+
+oracle fuel_consumption(power_kw: float, sfc_g_kwh: float, hours: float) -> float:
+    return power_kw * sfc_g_kwh * hours / 1000.0
+
+plan plan_motor_drive(power_kw: float, rpm: float, ratio: float, eff: float):
+    step torque_in:  torque_nm(power_kw, rpm)
+    step torque_out: output_torque(torque_in, ratio, eff)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOPOGRAFÍA / GEOTECNIA — Pendiente, Volúmenes, Capacidad portante
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle slope_pct(delta_h: float, distance: float) -> float:
+    return delta_h / distance * 100.0
+
+oracle slope_angle_deg(slope_pct_val: float) -> float:
+    return slope_pct_val / 100.0 * 57.2958
+
+oracle cut_volume(area_m2: float, avg_depth: float) -> float:
+    return area_m2 * avg_depth
+
+oracle fill_volume(area_m2: float, avg_fill: float, compaction: float) -> float:
+    return area_m2 * avg_fill / compaction
+
+oracle bearing_capacity_terzaghi(c: float, phi_deg: float, B: float, Df: float, gamma: float) -> float:
+    let nc: float = 20.0
+    let nq: float = 8.0
+    let ng: float = 5.0
+    let q: float = gamma * Df
+    return 1.3 * c * nc + q * nq + 0.4 * gamma * B * ng
+
+plan plan_earthwork(area_m2: float, cut_depth: float, fill_depth: float, compaction: float):
+    step cut_m3:  cut_volume(area_m2, cut_depth)
+    step fill_m3: fill_volume(area_m2, fill_depth, compaction)
+
+plan plan_slope_analysis(delta_h: float, distance: float):
+    step slope_pct_val: slope_pct(delta_h, distance)
+    step angle_deg:     slope_angle_deg(slope_pct_val)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// LOGÍSTICA / TRANSPORTE — Costos, rutas, flota
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle transport_cost(distance_km: float, cost_per_km: float, n_trips: float) -> float:
+    return distance_km * cost_per_km * n_trips
+
+oracle delivery_time_h(distance_km: float, speed_kmh: float, stops: float, time_per_stop_h: float) -> float:
+    return distance_km / speed_kmh + stops * time_per_stop_h
+
+oracle fleet_size(demand_trips_day: float, capacity_per_vehicle: float, utilization: float) -> float:
+    return demand_trips_day / (capacity_per_vehicle * utilization)
+
+oracle cost_per_unit(total_cost: float, units: float) -> float:
+    return total_cost / units
+
+oracle fuel_cost(distance_km: float, consumption_l_100km: float, price_l: float) -> float:
+    return distance_km * consumption_l_100km / 100.0 * price_l
+
+plan plan_transport(distance_km: float, cost_per_km: float, n_trips: float, units_per_trip: float):
+    step total_cost: transport_cost(distance_km, cost_per_km, n_trips)
+    step cost_unit:  cost_per_unit(total_cost, n_trips * units_per_trip)
+    step fuel_est:   fuel_cost(distance_km, 30.0, 4.5)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ESTADÍSTICA / DATOS — Media, desvío, percentil, correlación
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle weighted_avg(sum_wx: float, sum_w: float) -> float:
+    return sum_wx / sum_w
+
+oracle std_dev_approx(n: float, sum_x2: float, sum_x: float) -> float:
+    let mean: float = sum_x / n
+    return ((sum_x2 / n) - mean * mean) ^ 0.5
+
+oracle cv_pct(std_dev: float, mean: float) -> float:
+    return std_dev / mean * 100.0
+
+oracle z_score(x: float, mean: float, std_dev: float) -> float:
+    return (x - mean) / std_dev
+
+oracle sample_size(z: float, p: float, e: float) -> float:
+    return z * z * p * (1.0 - p) / (e * e)
+
+oracle regression_slope(n: float, sum_xy: float, sum_x: float, sum_y: float, sum_x2: float) -> float:
+    return (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
+
+plan plan_statistics(n: float, sum_x: float, sum_x2: float):
+    step mean:    weighted_avg(sum_x, n)
+    step std_dev: std_dev_approx(n, sum_x2, sum_x)
+    step cv:      cv_pct(std_dev, mean)
+
+plan plan_sample_size(confidence_pct: float, margin_error_pct: float):
+    step n_required: sample_size(1.96, 0.5, margin_error_pct)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// AGRO / AGRICULTURA — Riego, rendimiento, costos
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle irrigation_volume(area_ha: float, eto_mm_day: float, kc: float, eff: float) -> float:
+    return eto_mm_day * kc / 1000.0 * area_ha * 10000.0 / eff
+
+oracle crop_yield(area_ha: float, yield_t_ha: float) -> float:
+    return area_ha * yield_t_ha
+
+oracle fertilizer_need(area_ha: float, n_kg_ha: float, purity_pct: float) -> float:
+    return area_ha * n_kg_ha / (purity_pct / 100.0)
+
+oracle water_productivity(yield_t: float, water_m3: float) -> float:
+    return yield_t / water_m3 * 1000.0
+
+plan plan_irrigation(area_ha: float, eto_mm: float, kc: float, eff: float):
+    step vol_m3_day: irrigation_volume(area_ha, eto_mm, kc, eff)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TELECOMUNICACIONES — Señal, ancho de banda, cobertura
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle path_loss_fspl(freq_mhz: float, distance_km: float) -> float:
+    let log_d: float = distance_km ^ 0.5
+    let log_f: float = freq_mhz ^ 0.5
+    return 20.0 * 3.3219 * log_d + 20.0 * 3.3219 * log_f + 92.45
+
+oracle link_budget(tx_dbm: float, tx_gain_dbi: float, rx_gain_dbi: float, path_loss_db: float, rx_margin_db: float) -> float:
+    return tx_dbm + tx_gain_dbi + rx_gain_dbi - path_loss_db + rx_margin_db
+
+oracle shannon_capacity(bandwidth_mhz: float, snr_db: float) -> float:
+    let snr_lin: float = 10.0 ^ (snr_db / 10.0)
+    return bandwidth_mhz * (snr_lin ^ 0.5)
+
+oracle cell_coverage_km2(radius_km: float) -> float:
+    return 2.6 * radius_km * radius_km
+
+plan plan_telecom_link(tx_dbm: float, freq_mhz: float, distance_km: float, bw_mhz: float):
+    step fspl_db:    path_loss_fspl(freq_mhz, distance_km)
+    step margin_db:  link_budget(tx_dbm, 14.0, 14.0, fspl_db, 90.0)
+    step capacity_mbps: shannon_capacity(bw_mhz, 20.0)
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CIBERSEGURIDAD — Entropía, CVSS, Crypto, Red, Compliance
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# [builtin] password_entropy(charset_size, length) -> entropy bits
+
+# [builtin] brute_force_years(entropy_bits, attempts_per_sec) -> years
+
+oracle cvss_base_score(av: float, ac: float, pr: float, ui: float, scope: float, c: float, i: float, a: float) -> float:
+    let iss: float = 1.0 - (1.0 - c) * (1.0 - i) * (1.0 - a)
+    let impact: float = scope * (7.52 * iss - 3.25 * iss * iss * iss)
+    let exploit: float = 8.22 * av * ac * pr * ui
+    return (impact + exploit) * 0.1
+
+# [builtin] aes_key_strength(key_bits) -> score/10
+
+oracle rsa_key_strength(key_bits: float) -> float:
+    return key_bits / 4096.0 * 10.0
+
+oracle network_risk_score(open_ports: float, unpatched: float, exposed_services: float) -> float:
+    return (open_ports * 0.3 + unpatched * 0.5 + exposed_services * 0.2) * 10.0
+
+oracle ssl_risk(days_to_expiry: float) -> float:
+    return 10.0 - days_to_expiry / 36.5
+
+oracle scan_time_min(hosts: float, ports_per_host: float, ms_per_port: float) -> float:
+    return hosts * ports_per_host * ms_per_port / 60000.0
+
+oracle patch_priority_score(cvss: float, exploitability: float, asset_value: float) -> float:
+    return cvss * exploitability * asset_value / 100.0
+
+plan plan_password_audit(charset_size: float, length: float, attempts_per_sec: float):
+    step entropy:        password_entropy(charset_size, length)
+    step crack_years:    brute_force_years(entropy, attempts_per_sec)
+    step strength_ratio: aes_key_strength(entropy)
+
+plan plan_cvss_assessment(av: float, ac: float, pr: float, ui: float, scope: float, c: float, i: float, a: float):
+    step base_score:     cvss_base_score(av, ac, pr, ui, scope, c, i, a)
+    step priority:       patch_priority_score(base_score, av, ac)
+
+plan plan_network_security(open_ports: float, unpatched: float, services: float, days_ssl: float):
+    step net_risk:       network_risk_score(open_ports, unpatched, services)
+    step ssl_risk_val:   ssl_risk(days_ssl)
+    step scan_mins:      scan_time_min(open_ports, 100.0, 2.0)
+
+plan plan_crypto_audit(aes_bits: float, rsa_bits: float, charset_size: float, pwd_length: float):
+    step aes_strength:   aes_key_strength(aes_bits)
+    step rsa_strength:   rsa_key_strength(rsa_bits)
+    step pwd_entropy:    password_entropy(charset_size, pwd_length)
+
+# ── Bcrypt Hash Audit ──────────────────────────────────────────────
+# Models bcrypt cracking time for different attacker profiles.
+# base_gpu_rate: RTX 4090 = ~7000000 h/s at cost 5 (halves per +1 cost)
+# dict_size: rockyou.txt = 14000000, extended = 500000000
+plan plan_bcrypt_audit(cost_factor: float, charset_size: float, length: float, base_gpu_rate: float, dict_size: float):
+    step entropy:          password_entropy(charset_size, length)
+    step keyspace_total:   keyspace(charset_size, length)
+    step effective_rate:   bcrypt_hashrate(cost_factor, base_gpu_rate)
+    step dict_seconds:     dict_crack_seconds(dict_size, effective_rate)
+    step dict_hours:       secs_to_hours(dict_seconds)
+    step brute_seconds:    bcrypt_crack_seconds(keyspace_total, effective_rate)
+    step brute_years:      secs_to_years(brute_seconds)
+    step strength_ratio:   aes_key_strength(entropy)
+
+
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// GRAPH STRESS TEST PLANS — pipeline: demand → losses → pressure → pump
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle nfpa13_demand_gpm(area_ft2: float, density: float, hose_stream: float) -> float:
+    return density * area_ft2 + hose_stream
+
+oracle pipe_friction_loss(Q_gpm: float, C: float, D_in: float, L_ft: float) -> float:
+    let d5: float = D_in ^ 0.5
+    let q185: float = Q_gpm ^ 0.5
+    return 10.44 * L_ft * q185 / (C ^ 0.5 * d5)
+
+oracle residual_pressure(P_static: float, friction_loss: float) -> float:
+    return P_static - friction_loss
+
+oracle pump_deficit_hp(P_residual: float, P_required: float, Q_gpm: float, eff: float) -> float:
+    let deficit: float = P_required - P_residual
+    return Q_gpm * deficit / (3960.0 * eff)
+
+plan plan_nfpa13_demand(area_ft2: float, density: float, hose_stream: float):
+    step flow_gpm:   nfpa13_demand_gpm(area_ft2, density, hose_stream)
+    step pump_hp:    nfpa20_pump_hp(flow_gpm, 65.0, 0.70)
+
+plan plan_pipe_losses(Q_gpm: float, C: float, D_in: float, L_ft: float):
+    step friction:   pipe_friction_loss(Q_gpm, C, D_in, L_ft)
+    step velocity:   pipe_velocity(Q_gpm, D_in)
+
+plan plan_pressure(P_static: float, friction_loss: float):
+    step residual:   residual_pressure(P_static, friction_loss)
+
+plan plan_pump_selection(P_residual: float, P_required: float, Q_gpm: float):
+    step deficit_hp: pump_deficit_hp(P_residual, P_required, Q_gpm, 0.70)
+    step check_hp:   nfpa20_pump_hp(Q_gpm, P_required, 0.70)
+
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HEALTH DOMAIN — WHO/NFPA 99 · Autoclave · Medical Gas · Biosafety
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle autoclave_f_value(T_c: float, t_hold_min: float) -> float:
+    // F0 equivalent sterilization time at 134°C (WHO Biosafety 2020)
+    // F0 = t * 10^((T-121)/10) where z=10°C for steam sterilization
+    let delta_T: float = T_c - 121.0
+    let exp_factor: float = delta_T / 10.0
+    return t_hold_min * 10.0 ^ exp_factor
+
+oracle autoclave_log_reduction(f0: float, D_value_min: float) -> float:
+    // Log10 spore reduction = F0 / D121. Target: ≥12 log (SAL 10^-6)
+    return f0 / D_value_min
+
+oracle autoclave_steam_kg_h(vol_l: float, T_c: float) -> float:
+    // Approx steam demand per cycle (kg/h): 0.45 kg/L at 134°C
+    let temp_ratio: float = T_c / 134.0
+    return vol_l * 0.45 * temp_ratio
+
+oracle autoclave_cycles_day(t_hold_min: float, t_setup_min: float) -> float:
+    // 8h workday = 480 min / (hold + setup)
+    return 480.0 / (t_hold_min + t_setup_min)
+
+plan plan_autoclave_cycle(vol_l: float, T_c: float, P_bar: float, t_hold_min: float, D_value_min: float):
+    step f0_value:      autoclave_f_value(T_c, t_hold_min)
+    step log_reduction: autoclave_log_reduction(f0_value, D_value_min)
+    step steam_kg_h:    autoclave_steam_kg_h(vol_l, T_c)
+    step cycles_day:    autoclave_cycles_day(t_hold_min, 15.0)
+
+oracle medical_gas_peak_lpm(n_outlets: float, diversity: float, q_per_outlet: float) -> float:
+    // Peak simultaneous demand — NFPA 99 §5.1
+    return n_outlets * diversity * q_per_outlet
+
+oracle gas_pressure_margin(P_supply: float, P_required: float) -> float:
+    return P_supply - P_required
+
+oracle medical_gas_pipe_size_mm(Q_lpm: float, velocity_m_s: float) -> float:
+    // D = sqrt(4*Q/(π*v)) with Q in m3/s
+    let Q_m3s: float = Q_lpm / 60000.0
+    return 1000.0 * (4.0 * Q_m3s / (3.14159 * velocity_m_s)) ^ 0.5
+
+plan plan_medical_gas(n_outlets: float, diversity: float, q_lpm: float, P_supply_psi: float):
+    step peak_lpm:    medical_gas_peak_lpm(n_outlets, diversity, q_lpm)
+    step margin_psi:  gas_pressure_margin(P_supply_psi, 55.0)
+    step pipe_mm:     medical_gas_pipe_size_mm(peak_lpm, 10.0)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// AGRO DOMAIN — FAO-56 Penman-Monteith · Drip · Fertigation
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle et_crop_mm(ET0: float, Kc: float) -> float:
+    // ETc = ET0 * Kc (FAO-56)
+    return ET0 * Kc
+
+oracle drip_water_m3_ha(ETc_mm: float, eff: float) -> float:
+    // 1 mm over 1 ha = 10 m3; account for system efficiency
+    return ETc_mm * 10.0 / eff
+
+oracle drip_n_emitters(area_m2: float, row_m: float, spacing_m: float) -> float:
+    return area_m2 / (row_m * spacing_m)
+
+oracle drip_system_lph(n_emitters: float, q_emitter_lph: float) -> float:
+    return n_emitters * q_emitter_lph
+
+oracle drip_runtime_h(water_m3_ha: float, area_m2: float, system_lph: float) -> float:
+    let area_ha: float = area_m2 / 10000.0
+    let need_l: float = water_m3_ha * area_ha * 1000.0
+    return need_l / system_lph
+
+plan plan_drip_irrigation(area_m2: float, ET0_mm: float, Kc: float, row_m: float, spacing_m: float, q_emitter_lph: float, eff: float):
+    step ETc:           et_crop_mm(ET0_mm, Kc)
+    step water_m3_ha:   drip_water_m3_ha(ETc, eff)
+    step n_emitters:    drip_n_emitters(area_m2, row_m, spacing_m)
+    step system_lph:    drip_system_lph(n_emitters, q_emitter_lph)
+    step runtime_h:     drip_runtime_h(water_m3_ha, area_m2, system_lph)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// WATER RESOURCES — Manning · Urban Demand · Reservoir
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle rect_channel_R(b_m: float, y_m: float) -> float:
+    // Hydraulic radius for rectangular channel
+    return (b_m * y_m) / (b_m + 2.0 * y_m)
+
+oracle manning_velocity(n: float, R_m: float, S: float) -> float:
+    // v = (1/n) * R^(2/3) * S^(1/2)
+    return R_m ^ 0.667 * S ^ 0.5 / n
+
+oracle channel_Q_m3s(v: float, b_m: float, y_m: float) -> float:
+    return v * b_m * y_m
+
+oracle froude_n(v: float, y_m: float) -> float:
+    // Fr = v / sqrt(g*y), g=9.81
+    return v / (9.81 * y_m) ^ 0.5
+
+plan plan_hydro_channel(b_m: float, y_m: float, n_manning: float, slope: float):
+    step R:        rect_channel_R(b_m, y_m)
+    step velocity: manning_velocity(n_manning, R, slope)
+    step Q_m3s:    channel_Q_m3s(velocity, b_m, y_m)
+    step froude:   froude_n(velocity, y_m)
+
+oracle urban_demand_m3_day(pop: float, lpcd: float) -> float:
+    return pop * lpcd / 1000.0
+
+oracle reservoir_vol_m3(Q_day: float, days: float) -> float:
+    return Q_day * days
+
+oracle pipe_vel_m_s(Q_m3s: float, D_m: float) -> float:
+    let area: float = 3.14159 * (D_m / 2.0) ^ 2.0
+    return Q_m3s / area
+
+plan plan_hydro_demand(population: float, lpcd: float, storage_days: float, pipe_D_m: float):
+    step Q_day:     urban_demand_m3_day(population, lpcd)
+    step reservoir: reservoir_vol_m3(Q_day, storage_days)
+    step Q_s:       flow_m3s_from_daily(Q_day)
+    step vel_m_s:   pipe_vel_m_s(Q_s, pipe_D_m)
+
+oracle flow_m3s_from_daily(Q_day: float) -> float:
+    return Q_day / 86400.0
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MINING DOMAIN — Slope Stability · Vibration · Bearing Life
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+oracle slope_normal_stress(gamma: float, H_m: float, VH: float) -> float:
+    // σn = γ*H*cos²α, where cos²α = 1/(1+tan²α) and tan_alpha=VH
+    return gamma * H_m / (1.0 + VH ^ 2.0)
+
+oracle slope_driving_stress(gamma: float, H_m: float, VH: float) -> float:
+    // τd = γ*H*sinα*cosα = γ*H*VH/(1+VH²)
+    return gamma * H_m * VH / (1.0 + VH ^ 2.0)
+
+oracle slope_resisting_stress(c_kpa: float, sigma_n: float, tan_phi: float) -> float:
+    // τr = c + σn*tan(φ)
+    return c_kpa + sigma_n * tan_phi
+
+oracle slope_fos_inline(c_kpa: float, sigma_n: float, tan_phi: float, tau_drive: float) -> float:
+    let tau_r: float = c_kpa + sigma_n * tan_phi
+    return tau_r / (tau_drive + 0.001)
+
+oracle slope_fos(tau_r: float, tau_d: float) -> float:
+    // FoS ≥ 1.3 (OSHA), ≥ 1.5 (ACI) — input VH as V:H ratio e.g. 1.0 = 45°
+    return tau_r / (tau_d + 0.001)
+
+plan plan_slope_stability(H_m: float, VH_ratio: float, c_kpa: float, tan_phi: float, gamma_kN_m3: float):
+    step sigma_n:    slope_normal_stress(gamma_kN_m3, H_m, VH_ratio)
+    step tau_drive:  slope_driving_stress(gamma_kN_m3, H_m, VH_ratio)
+    step tau_resist: slope_resisting_stress(c_kpa, sigma_n, tan_phi)
+    step FoS:        slope_fos_inline(c_kpa, sigma_n, tan_phi, tau_drive)
+
+oracle vib_velocity_mm_s(disp_mm: float, freq_hz: float) -> float:
+    // RMS vibration velocity: v_rms = disp_mm * 2*pi*freq_hz / sqrt(2)
+    // v1.9 fix: full formula using let bindings (JIT let-bug fixed in v1.9)
+    let two_pi_f = 6.28318530717959
+    let sqrt2_f  = 1.41421356237310
+    let peak_vel = disp_mm * freq_hz * two_pi_f
+    return peak_vel / sqrt2_f
+
+oracle bearing_L10_h(base_h: float, load_ratio: float) -> float:
+    // L10 = C/P^3 bearing life: lr^3 = lr*lr*lr
+    return base_h * load_ratio * load_ratio * load_ratio
+
+oracle maintenance_days(L10_h: float) -> float:
+    return L10_h / 24.0
+
+plan plan_vibration_fatigue(disp_mm: float, freq_hz: float, base_life_h: float, load_ratio: float):
+    step vel_mm_s:   vib_velocity_mm_s(disp_mm, freq_hz)
+    step L10_h:      bearing_L10_h(base_life_h, load_ratio)
+    step maint_days: maintenance_days(L10_h)
+
+
+
+// ── NFPA Flow Regime Classification (v9.2 JIT if/else) ──────────────────
+oracle flow_regime(Re: float) -> float:
+    // Returns: 0=laminar, 1=turbulent (Reynolds number threshold)
+    if Re > 4000.0:
+        return 1.0
+    else:
+        return 0.0
+
+// ── NFPA 13 Pressure Class (psi) ──────────────────────────────────────────
+oracle nfpa_pressure_class(p_psi: float) -> float:
+    // Class 3=High(>=250), 2=Intermediate(>=175), 1=Normal(<175)
+    if p_psi >= 250.0:
+        return 3.0
+    else:
+        if p_psi >= 175.0:
+            return 2.0
+        else:
+            return 1.0
+
+// ── Pipe Velocity Class (ft/s) ─────────────────────────────────────────────
+oracle pipe_velocity_class(v_fps: float) -> float:
+    // Class 3=High(>6), 2=Moderate(>3), 1=Low(<=3) — NFPA 13 velocity limits
+    if v_fps > 6.0:
+        return 3.0
+    else:
+        if v_fps > 3.0:
+            return 2.0
+        else:
+            return 1.0
+
+// ── NFPA 20 Pump HP (from flow and pressure) ──────────────────────────────
+oracle nfpa20_bomba_hp(flow_gpm: float, pressure_psi: float) -> float:
+    return (1.0 * flow_gpm * (1.0 * pressure_psi)) / 1714.0
+
+// ── NFPA 13 Demand (area * density) ──────────────────────────────────────
+oracle nfpa13_demanda(area_m2: float, density: float) -> float:
+    return (1.0 * area_m2) * (1.0 * density)
+
+// ── NFPA 20 Pressure from Head ─────────────────────────────────────────────
+oracle nfpa20_presion(flow_gpm: float, head_ft: float) -> float:
+    return 1.0 * head_ft * 0.4335

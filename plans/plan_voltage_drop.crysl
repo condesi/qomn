@@ -1,0 +1,42 @@
+// CRYS-L v2.3 — Voltage Drop Calculation
+// Standard: CNE Perú / NEC 2020 Article 215
+
+plan_voltage_drop(I: f64, L: f64, rho: f64 = 1.68e-8, A: f64) {
+    meta {
+        standard: "CNE Peru / NEC 2020",
+        source:   "Article 215",
+        domain:   "electrical",
+        version:  "2.3",
+    }
+
+    // Conductor resistance: R = ρ × L / A
+    let R = rho * L / A;
+
+    // Voltage drop for single-phase: V_drop = 2 × I × R (round trip)
+    let V_drop = 2.0 * I * R;
+
+    // Percentage drop relative to 220V nominal (Peruvian standard)
+    const V_nom   = 220.0;
+    const MAX_PCT = 5.0;     // CNE: max 5% voltage drop (feeders)
+    let V_drop_pct = (V_drop / V_nom) * 100.0;
+
+    // Minimum conductor area for ≤5% drop
+    let A_min = (2.0 * rho * L * I) / (V_nom * MAX_PCT / 100.0);
+
+    formula "Resistance":    "R = rho x L / A  [ohm]";
+    formula "Voltage drop":  "V = 2 x I x R    [V, single-phase]";
+    formula "Drop %":        "pct = V_drop / V_nom x 100";
+    formula "Min conductor": "A_min = 2 x rho x L x I / (V_nom x 0.05)  [m²]";
+
+    assert I > 0.0    msg "current must be positive";
+    assert L > 0.0    msg "cable length must be positive";
+    assert rho > 0.0  msg "resistivity must be positive";
+    assert A > 0.0    msg "conductor area must be positive";
+
+    output R          label "Conductor Resistance"  unit "ohm";
+    output V_drop     label "Voltage Drop"          unit "V";
+    output V_drop_pct label "Voltage Drop %"        unit "%";
+    output A_min      label "Min Conductor Area"    unit "m2";
+
+    return { R: R, V_drop: V_drop, V_drop_pct: V_drop_pct, A_min: A_min };
+}

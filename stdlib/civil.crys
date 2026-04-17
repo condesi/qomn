@@ -1,0 +1,56 @@
+// CRYS-L Standard Library — Civil/Structural Engineering
+// Percy Rojas M. · Qomni AI Lab · 2026
+// Standards: ACI 318, AISC, Eurocode, Manning equation
+
+oracle manning_flow(n: float, A: float, R: float, S: float) -> float:
+    // Manning: Q = (1/n) * A * R^(2/3) * S^(1/2)
+    return (1.0 / n) * A * (R ^ 0.6667) * (S ^ 0.5)
+
+oracle hazen_williams(C: float, R: float, S: float) -> float:
+    // v = 0.849 * C * R^0.63 * S^0.54  [m/s]
+    return 0.849 * C * (R ^ 0.63) * (S ^ 0.54)
+
+oracle beam_deflection(P: float, L: float, E: float, I: float) -> float:
+    // delta = P * L^3 / (48 * E * I)  [simply supported, center load]
+    return P * (L ^ 3.0) / (48.0 * E * I)
+
+oracle beam_moment(P: float, L: float) -> float:
+    // M = P * L / 4  [simply supported, center load]
+    return P * L / 4.0
+
+oracle column_buckling(E: float, I: float, L: float, K: float) -> float:
+    // Euler critical load: Pcr = pi^2 * E * I / (K*L)^2
+    return 9.8696 * E * I / ((K * L) * (K * L))
+
+oracle concrete_strength_check(fc: float, As: float, b: float, d: float) -> float:
+    // Mu_approx = As * fy * (d - As*fy/(1.7*fc*b))  simplified
+    // Using fy=420 MPa typical
+    return As * 420.0 * (d - As * 420.0 / (1.7 * fc * b))
+
+oracle soil_bearing(q_allow: float, B: float, L: float) -> float:
+    // Q_allow = q_allow * B * L  [total allowable load, kN]
+    return q_allow * B * L
+
+oracle retaining_wall_stability(W: float, mu: float, H_active: float) -> float:
+    // Sliding factor = mu * W / H_active (should be > 1.5)
+    return mu * W / H_active
+
+oracle pipe_flow_velocity(Q: float, D: float) -> float:
+    // v = Q / (pi/4 * D^2)   [m/s, Q in m3/s, D in m]
+    return Q / (0.7854 * D * D)
+
+oracle reynolds_number(v: float, D: float, nu: float) -> float:
+    // Re = v * D / nu  [nu = kinematic viscosity, water: 1e-6 m2/s]
+    return v * D / nu
+
+// ── Plans ──────────────────────────────────────────────────────────────
+
+plan plan_drainage_channel(n: float, b: float, y: float, S: float):
+    // Rectangular channel: A = b*y, P = b+2y, R = A/P
+    step A_section:   manning_flow(n, b * y, b * y / (b + 2.0 * y), S)
+    step v_flow:      pipe_flow_velocity(A_section, b)
+
+plan plan_beam_design(P_kn: float, L_m: float, E_gpa: float, b_m: float, h_m: float):
+    // I = b*h^3/12
+    step moment:      beam_moment(P_kn * 1000.0, L_m)
+    step deflection:  beam_deflection(P_kn * 1000.0, L_m, E_gpa * 1000000000.0, b_m * h_m * h_m * h_m / 12.0)

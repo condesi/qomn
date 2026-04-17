@@ -1,0 +1,52 @@
+// ── CRYS-L v2.7 Standard Library: Linear Algebra ─────────────────────
+// Provides: vec2, vec3, vec4, mat3, mat4, dot, cross, norm, normalize,
+//           det, transpose, matmul, lerp — all as built-in VM operations.
+// Reference: ISO 80000-2 (mathematical signs/symbols)
+// ─────────────────────────────────────────────────────────────────────
+
+// Euclidean distance between two 3D points
+oracle euclidean_dist_3d(x1: float, y1: float, z1: float, x2: float, y2: float, z2: float) -> float:
+    let dx = x2 - x1
+    let dy = y2 - y1
+    let dz = z2 - z1
+    let d  = sqrt(dx * dx + dy * dy + dz * dz)
+    -> respond(d)
+
+// Vector projection: scalar proj of a onto b = dot(a,b)/norm(b)
+oracle scalar_projection(ax: float, ay: float, az: float, bx: float, by: float, bz: float) -> float:
+    let dot_ab = ax * bx + ay * by + az * bz
+    let norm_b = sqrt(bx * bx + by * by + bz * bz)
+    let proj   = dot_ab / (norm_b + 0.0001)
+    -> respond(proj)
+
+// Angle between two 3D vectors (radians)
+oracle angle_between_3d(ax: float, ay: float, az: float, bx: float, by: float, bz: float) -> float:
+    let dot_ab  = ax * bx + ay * by + az * bz
+    let norm_a  = sqrt(ax * ax + ay * ay + az * az)
+    let norm_b  = sqrt(bx * bx + by * by + bz * bz)
+    let cos_t   = dot_ab / (norm_a * norm_b + 0.0001)
+    // clamp to [-1, 1] to guard acos domain
+    let cos_clamped = clamp(cos_t, -1.0, 1.0)
+    // acos approximation: pi/2 - asin, asin via atan
+    // For now: cos_t (caller applies acos externally)
+    -> respond(cos_clamped)
+
+// 3x3 determinant (row-major: m0..m8)
+oracle det3x3(m0: float, m1: float, m2: float,
+              m3: float, m4: float, m5: float,
+              m6: float, m7: float, m8: float) -> float:
+    let d = m0*(m4*m8 - m5*m7) - m1*(m3*m8 - m5*m6) + m2*(m3*m7 - m4*m6)
+    -> respond(d)
+
+// Bilinear interpolation on a 2D grid cell
+oracle bilinear(q11: float, q21: float, q12: float, q22: float, tx: float, ty: float) -> float:
+    let r1 = q11 * (1.0 - tx) + q21 * tx
+    let r2 = q12 * (1.0 - tx) + q22 * tx
+    let p  = r1 * (1.0 - ty) + r2 * ty
+    -> respond(p)
+
+// Smooth Hermite interpolation (smoothstep)
+oracle smoothstep(edge0: float, edge1: float, x: float) -> float:
+    let t = clamp((x - edge0) / (edge1 - edge0 + 0.0001), 0.0, 1.0)
+    let s = t * t * (3.0 - 2.0 * t)
+    -> respond(s)

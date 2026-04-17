@@ -1,0 +1,60 @@
+// CRYS-L Standard Library — HVAC (Heating, Ventilation, Air Conditioning)
+// Percy Rojas M. · Qomni AI Lab · 2026
+// Standards: ASHRAE 62.1, ASHRAE 90.1, EN 13779
+
+oracle cooling_load(area_m2: float, watts_per_m2: float) -> float:
+    // Q_cooling = area * load_density  [W]
+    return area_m2 * watts_per_m2
+
+oracle cooling_tons(Q_watts: float) -> float:
+    // Tons of refrigeration: 1 ton = 3517 W
+    return Q_watts / 3517.0
+
+oracle air_flow_cfm(Q_watts: float, delta_T_f: float) -> float:
+    // CFM = Q_btu / (1.08 * delta_T)   [Q_btu = Q_watts * 3.412]
+    return (Q_watts * 3.412) / (1.08 * delta_T_f)
+
+oracle duct_velocity(Q_cfm: float, area_ft2: float) -> float:
+    // v = Q / A  [ft/min]
+    return Q_cfm / area_ft2
+
+oracle duct_pressure_drop(v: float, L: float, D: float, f: float) -> float:
+    // Darcy-Weisbach: dP = f * (L/D) * (rho*v^2/2)
+    // For air at standard conditions: rho = 0.075 lb/ft3
+    return f * (L / D) * 0.075 * v * v / 2.0
+
+oracle cop_cooling(Q_cold: float, W_input: float) -> float:
+    // COP = Q_cold / W_input
+    return Q_cold / W_input
+
+oracle eer(Q_btu: float, W_watts: float) -> float:
+    // EER = BTU/h / W
+    return Q_btu / W_watts
+
+oracle ventilation_rate(N_persons: float, area_m2: float) -> float:
+    // ASHRAE 62.1: Vbz = Rp*Pz + Ra*Az
+    // Rp = 10 cfm/person (office), Ra = 0.06 cfm/ft2
+    let area_ft2: float = area_m2 * 10.764
+    return N_persons * 10.0 + area_ft2 * 0.06
+
+oracle heat_loss_wall(U: float, A: float, delta_T: float) -> float:
+    // Q = U * A * delta_T  [W = W/(m2*K) * m2 * K]
+    return U * A * delta_T
+
+oracle humidity_ratio(T_db: float, RH: float) -> float:
+    // Simplified: w ≈ 0.622 * RH * Psat / (P - RH * Psat)
+    // Psat(T) approximation: 0.1333 * exp(17.67*T/(T+243.5)) kPa at T °C
+    let Psat: float = 0.1333 * (17.67 * T_db / (T_db + 243.5))
+    return 0.622 * RH * Psat / (101.325 - RH * Psat)
+
+// ── Plans ──────────────────────────────────────────────────────────────
+
+plan plan_hvac_sizing(area_m2: float, N_persons: float, delta_T_f: float):
+    step Q_cooling_w:  cooling_load(area_m2, 150.0)
+    step tons:         cooling_tons(Q_cooling_w)
+    step cfm:          air_flow_cfm(Q_cooling_w, delta_T_f)
+    step vent_cfm:     ventilation_rate(N_persons, area_m2)
+
+plan plan_energy_efficiency(Q_cold_kw: float, W_compressor_kw: float):
+    step cop:          cop_cooling(Q_cold_kw * 1000.0, W_compressor_kw * 1000.0)
+    step eer_val:      eer(Q_cold_kw * 3412.0, W_compressor_kw * 1000.0)

@@ -1,0 +1,85 @@
+// CRYS-L Standard Library — Electrical Engineering
+// Percy Rojas M. · Qomni AI Lab · 2026
+// Standards: IEC 60038, IEC 60228, NEC, IEEE
+// NOTE: rho in Ω·mm²/m (copper=0.0172, aluminium=0.028) — avoids float precision loss
+
+oracle voltage_drop(I: float, L: float, rho: float, A: float) -> float:
+    // DeltaV = 2 * I * L * rho / A  [single-phase, rho in Ω·mm²/m, A in mm²]
+    return 2.0 * I * L * rho / A
+
+oracle voltage_drop_3ph(I: float, L: float, rho: float, A: float) -> float:
+    // DeltaV = sqrt(3) * I * L * rho / A  [3-phase, rho in Ω·mm²/m, A in mm²]
+    return 1.7321 * I * L * rho / A
+
+oracle voltage_drop_pct(V_drop: float, V_nom: float) -> float:
+    // %dV = V_drop / V_nom * 100
+    return V_drop / V_nom * 100.0
+
+oracle short_circuit_current(V: float, Z: float) -> float:
+    // Icc = V / Z
+    return V / Z
+
+oracle load_current_1ph(P_w: float, V: float, pf: float) -> float:
+    // I = P / (V * pf)
+    return P_w / (V * pf)
+
+oracle load_current_3ph(P_w: float, V: float, pf: float) -> float:
+    // I = P / (sqrt(3) * V * pf)
+    return P_w / (1.7321 * V * pf)
+
+oracle apparent_power(P_w: float, pf: float) -> float:
+    // S = P / pf  [VA]
+    return P_w / pf
+
+oracle reactive_power(P_w: float, pf: float) -> float:
+    // Q = P * tan(acos(pf)) ≈ P * sqrt(1 - pf^2) / pf
+    let sin_phi: float = (1.0 - pf * pf) ^ 0.5
+    return P_w * sin_phi / pf
+
+oracle conductor_resistance(rho: float, L: float, A: float) -> float:
+    // R = rho * L / A  [ohm, rho in Ω·mm²/m, A in mm²]
+    return rho * L / A
+
+oracle power_loss(I: float, R: float) -> float:
+    // P_loss = I^2 * R
+    return I * I * R
+
+oracle efficiency(P_out: float, P_in: float) -> float:
+    // eff = P_out / P_in
+    return P_out / P_in
+
+oracle capacitor_kvar(kvar_needed: float, pf_current: float, pf_target: float) -> float:
+    // Q_c = P * (tan(acos(pf1)) - tan(acos(pf2)))
+    let q1: float = (1.0 - pf_current * pf_current) ^ 0.5 / pf_current
+    let q2: float = (1.0 - pf_target * pf_target) ^ 0.5 / pf_target
+    return kvar_needed * (q1 - q2)
+
+oracle transformer_rating(P_kw: float, pf: float, eff: float) -> float:
+    // kVA = P_kW / (pf * eff)
+    return P_kw / (pf * eff)
+
+oracle cable_ampacity_derating(I_base: float, temp_factor: float, grouping_factor: float) -> float:
+    // I_derated = I_base * temp_factor * grouping_factor
+    return I_base * temp_factor * grouping_factor
+
+// ── Plans ──────────────────────────────────────────────────────────────
+
+plan plan_electrical_load(P_kw: float, V: float, pf: float, L_m: float, A_mm2: float):
+    step I_load:      load_current_3ph(P_kw * 1000.0, V, pf)
+    step S_kva:       apparent_power(P_kw * 1000.0, pf)
+    step dV:          voltage_drop_3ph(I_load, L_m, 0.0172, A_mm2)
+    step drop_pct:    voltage_drop_pct(dV, V)
+    step P_loss_w:    power_loss(I_load, conductor_resistance(0.0172, L_m, A_mm2))
+
+plan plan_power_factor_correction(P_kw: float, pf_current: float, pf_target: float):
+    step Q_reactive:  reactive_power(P_kw * 1000.0, pf_current)
+    step kvar_needed: capacitor_kvar(P_kw, pf_current, pf_target)
+    step S_before:    apparent_power(P_kw * 1000.0, pf_current)
+    step S_after:     apparent_power(P_kw * 1000.0, pf_target)
+
+plan plan_voltage_drop(I: float, L_m: float, A_mm2: float):
+    // IEC 60364-5-52 / NEC 310 — copper, single-phase, rho=0.0172 Ω·mm²/m
+    step V_drop:      voltage_drop(I, L_m, 0.0172, A_mm2)
+    step R_line:      conductor_resistance(0.0172, L_m, A_mm2)
+    step P_loss_w:    power_loss(I, R_line)
+    step drop_pct:    voltage_drop_pct(V_drop, 220.0)

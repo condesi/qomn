@@ -1,0 +1,38 @@
+[package]
+name    = "crysl"
+version = "0.2.0"
+edition = "2021"
+description = "CRYS-L compiler — Crystal Language for ternary AI inference (v2.0: typed units, plan engine, intent parser)"
+authors = ["Percy Rojas Masgo <percy.rojas@condesi.pe>"]
+license = "Apache-2.0"
+
+[[bin]]
+name = "crysl"
+path = "src/main.rs"
+
+[lib]
+name = "crysl_lib"
+path = "src/lib.rs"
+
+[dependencies]
+# v1.6: Cranelift JIT — oracle bodies → native x86-64
+cranelift-codegen  = "0.113"
+cranelift-native   = "0.113"
+cranelift-frontend = "0.113"
+cranelift-jit      = "0.113"
+cranelift-module   = "0.113"
+
+# v2.2: HTTP client for Claude API IntentParser + web fetch builtin
+ureq     = { version = "2.10", features = ["json"] }
+serde    = { version = "1",    features = ["derive"] }
+serde_json = "1"
+dashmap = "6"
+rayon    = "1.8"
+tungstenite = { version = "0.21", features = ["handshake"] }
+libc     = "0.2"
+
+[features]
+# Build without JIT (stdlib only, max portability)
+no-jit = []
+# Build without network features (pure computation only)
+no-net = []

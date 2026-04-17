@@ -1,0 +1,63 @@
+// CRYS-L v2.3 — Planilla de Remuneraciones (DL 728 / Ley 29783)
+// Cálculo de aportes y deducciones laborales en Perú
+// Standard: Decreto Legislativo 728, Ley 26790
+
+plan_planilla_dl728(sueldo_bruto: f64, bonificacion: f64 = 0.0, asignacion_familiar: f64 = 102.5) {
+    meta {
+        standard: "DL 728 / Ley 26790",
+        source:   "SUNAT / MTPE Peru",
+        domain:   "financial",
+        version:  "2.3",
+    }
+
+    // Tasas vigentes 2024-2026
+    const ESSALUD_RATE   = 0.09;   // 9% empleador → EsSalud
+    const ONP_RATE       = 0.13;   // 13% trabajador → ONP (SNPS)
+    const AFP_RATE       = 0.10;   // ~10% trabajador → AFP (prima + aporte + seguro)
+    const CTS_FACTOR     = 0.0833; // 1/12 sueldo + 1/6 vacaciones ≈ 8.33%/mes
+    const VACACIONES     = 0.0833; // 30 días/año = 8.33% mensual
+    const RMV            = 1025.0; // Remuneración Mínima Vital 2024
+
+    // Remuneración computable
+    let rem_computable = sueldo_bruto + bonificacion + asignacion_familiar;
+
+    // Aportes del empleador
+    let essalud = rem_computable * ESSALUD_RATE;
+
+    // Aportes del trabajador (ONP como sistema default)
+    let onp = rem_computable * ONP_RATE;
+
+    // Neto a pagar (SNP)
+    let neto_snp = rem_computable - onp;
+
+    // CTS mensual (provisión)
+    let cts_mensual = (sueldo_bruto + asignacion_familiar) * (CTS_FACTOR + VACACIONES / 6.0);
+
+    // Costo total empleador
+    let costo_empleador = rem_computable + essalud + cts_mensual;
+
+    formula "EsSalud": "9% x rem_computable  [Ley 26790]";
+    formula "ONP":     "13% x rem_computable  [DL 19990]";
+    formula "CTS":     "(sueldo + AF) x (1/12 + 1/72)  [DL 650]";
+    formula "Costo":   "rem + EsSalud + CTS  [costo laboral total]";
+
+    assert sueldo_bruto >= RMV         msg "sueldo debe ser >= RMV (S/ 1,025)";
+    assert asignacion_familiar >= 0.0  msg "asignacion familiar debe ser >= 0";
+    assert bonificacion >= 0.0         msg "bonificacion debe ser >= 0";
+
+    output rem_computable  label "Remuneracion Computable"   unit "PEN";
+    output essalud         label "EsSalud (empleador 9%)"    unit "PEN";
+    output onp             label "ONP trabajador (13%)"      unit "PEN";
+    output neto_snp        label "Neto a Pagar (SNP)"        unit "PEN";
+    output cts_mensual     label "Provision CTS mensual"     unit "PEN";
+    output costo_empleador label "Costo Total Empleador"     unit "PEN";
+
+    return {
+        rem_computable:  rem_computable,
+        essalud:         essalud,
+        onp:             onp,
+        neto_snp:        neto_snp,
+        cts_mensual:     cts_mensual,
+        costo_empleador: costo_empleador,
+    };
+}
