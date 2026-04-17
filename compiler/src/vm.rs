@@ -19,12 +19,6 @@ pub enum Val {
     Tvec(Vec<i8>),
     Fvec(Vec<f32>),      // encoded float vector
     Null,
-    // v2.7: Linear algebra types
-    Vec2([f64; 2]),
-    Vec3([f64; 3]),
-    Vec4([f64; 4]),
-    Mat3([f64; 9]),      // row-major 3x3
-    Mat4([f64; 16]),     // row-major 4x4
 }
 
 impl fmt::Display for Val {
@@ -38,12 +32,6 @@ impl fmt::Display for Val {
             Val::Tvec(v)   => write!(f, "tvec[{}; len={}]", v.iter().take(4).map(|x| x.to_string()).collect::<Vec<_>>().join(","), v.len()),
             Val::Fvec(v)   => write!(f, "fvec[{:.3}...; len={}]", v.first().unwrap_or(&0.0), v.len()),
             Val::Null      => write!(f, "null"),
-            Val::Vec2(v)   => write!(f, "vec2({:.4},{:.4})", v[0], v[1]),
-            Val::Vec3(v)   => write!(f, "vec3({:.4},{:.4},{:.4})", v[0], v[1], v[2]),
-            Val::Vec4(v)   => write!(f, "vec4({:.4},{:.4},{:.4},{:.4})", v[0], v[1], v[2], v[3]),
-            Val::Mat3(m)   => write!(f, "mat3([[{:.3},{:.3},{:.3}],[{:.3},{:.3},{:.3}],[{:.3},{:.3},{:.3}]])",
-                                m[0],m[1],m[2], m[3],m[4],m[5], m[6],m[7],m[8]),
-            Val::Mat4(_)   => write!(f, "mat4(4x4)"),
         }
     }
 }
@@ -274,105 +262,6 @@ impl Vm {
                         self.output.push(format!("{}", v));
                         return Ok(v);
                     }
-                    // v2.7: linalg built-ins
-                    let evaled: Result<Vec<Val>, String> = args.iter().map(|a| self.eval_expr(a)).collect();
-                    let av = evaled?;
-                    let to_f = |v: &Val| match v {
-                        Val::Float(x) => *x,
-                        Val::Int(n)   => *n as f64,
-                        _             => 0.0,
-                    };
-                    match name.as_str() {
-                        "vec2" if av.len() == 2 =>
-                            return Ok(Val::Vec2([to_f(&av[0]), to_f(&av[1])])),
-                        "vec3" if av.len() == 3 =>
-                            return Ok(Val::Vec3([to_f(&av[0]), to_f(&av[1]), to_f(&av[2])])),
-                        "vec4" if av.len() == 4 =>
-                            return Ok(Val::Vec4([to_f(&av[0]), to_f(&av[1]), to_f(&av[2]), to_f(&av[3])])),
-                        "mat3" if av.len() == 9 => {
-                            let mut m = [0.0f64; 9];
-                            for (i, v) in av.iter().enumerate() { m[i] = to_f(v); }
-                            return Ok(Val::Mat3(m));
-                        }
-                        "mat4" if av.len() == 16 => {
-                            let mut m = [0.0f64; 16];
-                            for (i, v) in av.iter().enumerate() { m[i] = to_f(v); }
-                            return Ok(Val::Mat4(m));
-                        }
-                        "dot" => match (&av.get(0), &av.get(1)) {
-                            (Some(Val::Vec2(a)), Some(Val::Vec2(b))) =>
-                                return Ok(Val::Float(a[0]*b[0] + a[1]*b[1])),
-                            (Some(Val::Vec3(a)), Some(Val::Vec3(b))) =>
-                                return Ok(Val::Float(a[0]*b[0] + a[1]*b[1] + a[2]*b[2])),
-                            (Some(Val::Vec4(a)), Some(Val::Vec4(b))) =>
-                                return Ok(Val::Float(a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3])),
-                            _ => {}
-                        },
-                        "cross" => if let (Some(Val::Vec3(a)), Some(Val::Vec3(b))) = (av.get(0), av.get(1)) {
-                            return Ok(Val::Vec3([
-                                a[1]*b[2] - a[2]*b[1],
-                                a[2]*b[0] - a[0]*b[2],
-                                a[0]*b[1] - a[1]*b[0],
-                            ]));
-                        },
-                        "norm" => match av.get(0) {
-                            Some(Val::Vec2(v)) => return Ok(Val::Float((v[0]*v[0]+v[1]*v[1]).sqrt())),
-                            Some(Val::Vec3(v)) => return Ok(Val::Float((v[0]*v[0]+v[1]*v[1]+v[2]*v[2]).sqrt())),
-                            Some(Val::Vec4(v)) => return Ok(Val::Float((v[0]*v[0]+v[1]*v[1]+v[2]*v[2]+v[3]*v[3]).sqrt())),
-                            _ => {}
-                        },
-                        "normalize" => match av.get(0) {
-                            Some(Val::Vec3(v)) => {
-                                let n = (v[0]*v[0]+v[1]*v[1]+v[2]*v[2]).sqrt();
-                                if n > 1e-12 { return Ok(Val::Vec3([v[0]/n, v[1]/n, v[2]/n])); }
-                            }
-                            Some(Val::Vec2(v)) => {
-                                let n = (v[0]*v[0]+v[1]*v[1]).sqrt();
-                                if n > 1e-12 { return Ok(Val::Vec2([v[0]/n, v[1]/n])); }
-                            }
-                            _ => {}
-                        },
-                        "det" => if let Some(Val::Mat3(m)) = av.get(0) {
-                            let d = m[0]*(m[4]*m[8]-m[5]*m[7])
-                                  - m[1]*(m[3]*m[8]-m[5]*m[6])
-                                  + m[2]*(m[3]*m[7]-m[4]*m[6]);
-                            return Ok(Val::Float(d));
-                        },
-                        "transpose" => if let Some(Val::Mat3(m)) = av.get(0) {
-                            return Ok(Val::Mat3([
-                                m[0],m[3],m[6], m[1],m[4],m[7], m[2],m[5],m[8]
-                            ]));
-                        },
-                        "matmul" => match (av.get(0), av.get(1)) {
-                            (Some(Val::Mat3(a)), Some(Val::Mat3(b))) => {
-                                let mut r = [0.0f64; 9];
-                                for i in 0..3 { for j in 0..3 { for k in 0..3 {
-                                    r[i*3+j] += a[i*3+k] * b[k*3+j];
-                                }}}
-                                return Ok(Val::Mat3(r));
-                            }
-                            (Some(Val::Mat3(a)), Some(Val::Vec3(v))) => {
-                                return Ok(Val::Vec3([
-                                    a[0]*v[0]+a[1]*v[1]+a[2]*v[2],
-                                    a[3]*v[0]+a[4]*v[1]+a[5]*v[2],
-                                    a[6]*v[0]+a[7]*v[1]+a[8]*v[2],
-                                ]));
-                            }
-                            _ => {}
-                        },
-                        "lerp" if av.len() == 3 => match (av.get(0), av.get(1), av.get(2)) {
-                            (Some(Val::Vec3(a)), Some(Val::Vec3(b)), Some(t)) => {
-                                let t = to_f(t);
-                                return Ok(Val::Vec3([
-                                    a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t
-                                ]));
-                            }
-                            (Some(Val::Float(a)), Some(Val::Float(b)), Some(t)) =>
-                                return Ok(Val::Float(a + (b - a) * to_f(t))),
-                            _ => {}
-                        },
-                        _ => {}
-                    }
                 }
                 Ok(Val::Null)
             }
@@ -401,11 +290,6 @@ impl Vm {
             (BinaryOp::Mul, Val::Int(a), Val::Int(b))     => Ok(Val::Int(a * b)),
             (BinaryOp::Add, Val::Float(a), Val::Int(b))   => Ok(Val::Float(a + b as f64)),
             (BinaryOp::Mul, Val::Float(a), Val::Int(b))   => Ok(Val::Float(a * b as f64)),
-            (BinaryOp::Mul, Val::Int(a),   Val::Float(b)) => Ok(Val::Float(a as f64 * b)),
-            (BinaryOp::Add, Val::Int(a),   Val::Float(b)) => Ok(Val::Float(a as f64 + b)),
-            (BinaryOp::Sub, Val::Float(a), Val::Int(b))   => Ok(Val::Float(a - b as f64)),
-            (BinaryOp::Sub, Val::Int(a),   Val::Float(b)) => Ok(Val::Float(a as f64 - b)),
-            (BinaryOp::Div, Val::Int(a),   Val::Float(b)) => Ok(Val::Float(a as f64 / b)),
             (BinaryOp::Pow, Val::Float(a), Val::Int(b))   => Ok(Val::Float(a.powf(b as f64))),
             (BinaryOp::Mul, Val::Trit(a), Val::Trit(b))   => {
                 Ok(Val::Trit(match (a, b) { (1,1)|(-1,-1) => 1, (0,_)|(_,0) => 0, _ => -1 }))
@@ -415,9 +299,6 @@ impl Vm {
             (BinaryOp::Gt,  Val::Float(a), Val::Float(b)) => Ok(Val::Bool(a > b)),
             (BinaryOp::And, Val::Bool(a), Val::Bool(b))   => Ok(Val::Bool(a && b)),
             (BinaryOp::Or,  Val::Bool(a), Val::Bool(b))   => Ok(Val::Bool(a || b)),
-            (BinaryOp::Ge,  Val::Float(a), Val::Float(b)) => Ok(Val::Bool(a >= b)),
-            (BinaryOp::Le,  Val::Float(a), Val::Float(b)) => Ok(Val::Bool(a <= b)),
-            (BinaryOp::Ne,  Val::Float(a), Val::Float(b)) => Ok(Val::Bool((a-b).abs() >= 1e-6)),
             _ => Ok(Val::Null),
         }
     }

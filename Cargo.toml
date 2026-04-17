@@ -22,7 +22,7 @@ cranelift-frontend = "0.113"
 cranelift-jit      = "0.113"
 cranelift-module   = "0.113"
 
-# v2.2: HTTP client for Claude API IntentParser + web fetch builtin
+# v2.2: HTTP client for LLM API IntentParser + web fetch builtin
 ureq     = { version = "2.10", features = ["json"] }
 serde    = { version = "1",    features = ["derive"] }
 serde_json = "1"

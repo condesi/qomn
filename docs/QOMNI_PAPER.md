@@ -402,7 +402,7 @@ Standards: CVSS v3.1, OWASP, NIST SP 800-63B
 
 ### 6.1 vs. Large Language Models
 
-| Property | GPT-4 / Gemini / Claude | Qomni + CRYS-L |
+| Property | GPT-4 / Gemini / LLMs | Qomni + CRYS-L |
 |----------|------------------------|----------------|
 | Output type | Probable text | Exact float64 |
 | Determinism | No (temperature > 0) | Yes (IEEE-754 guarantee) |
