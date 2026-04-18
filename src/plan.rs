@@ -109,9 +109,15 @@ impl PlanResult {
     /// JSON output
     pub fn to_json(&self) -> String {
         let steps_json: Vec<String> = self.steps.iter().map(|s| {
+            // Canonicalize: -0.0 → +0.0 (same logical value, same hash)
+            // Clamp: inf/-inf → bounded sentinel (never NaN in output)
+            let v = if s.value == 0.0 { 0.0_f64 }  // -0.0 → +0.0
+                    else if s.value.is_finite() { s.value }
+                    else if s.value > 0.0 { 1e99_f64 }
+                    else { -1e99_f64 };
             format!(
                 r#"    {{"step":"{}", "oracle":"{}", "result":{:.6}, "latency_ns":{:.1}}}"#,
-                s.step, s.oracle, if s.value.is_finite() { s.value } else if s.value > 0.0 { 1e99_f64 } else { -1e99_f64 }, s.latency_ns
+                s.step, s.oracle, v, s.latency_ns
             )
         }).collect();
         format!(
@@ -565,7 +571,7 @@ impl<'a> PlanExecutor<'a> {
         });
         m.insert("nfpa13_sprinkler_count".into(), |a| {
             if a[1] == 0.0 { return 0.0; }
-            a[0] / a[1]
+            (a[0] / a[1]).ceil()  // NFPA 13: always round UP — 7.69 heads → 8
         });
         m.insert("nfpa13_demand_flow".into(), |a| a[0] * a[1] + a[2]);
         m.insert("nfpa20_bomba_hp".into(), |a| {
@@ -586,7 +592,7 @@ impl<'a> PlanExecutor<'a> {
         });
         m.insert("nfpa72_detector_count".into(), |a| {
             if a[1] == 0.0 { return 0.0; }
-            a[0] / (a[1] * a[1])
+            (a[0] / (a[1] * a[1])).ceil()  // NFPA 72: fractional detectors round UP
         });
         m.insert("nfpa72_beam_length".into(), |a| {
             if a[1] == 0.0 { return 0.0; }
@@ -630,6 +636,25 @@ impl<'a> PlanExecutor<'a> {
         m.insert("pow2".into(),  |a| (2.0_f64).powf(a[0]));
         m.insert("log10".into(), |a| a[0].log10());
         m.insert("pow".into(),   |a| a[0].powf(a[1]));
+        m.insert("math_ceil".into(),  |a| a[0].ceil());
+        m.insert("math_floor".into(), |a| a[0].floor());
+        m.insert("math_round".into(), |a| a[0].round());
+
+        // ── Full fire system (NFPA 13/14/20) US units ─────────────────────
+        // Hazen-Williams friction loss: h_f(PSI) = 4.73*L*Q^1.852/(2.31*C^1.852*D^4.87)
+        // Q in GPM, D in inches, L in feet
+        m.insert("hw_friction_psi".into(), |a| {
+            let (q, c, d, l) = (a[0], a[1], a[2], a[3]);
+            if d == 0.0 || c == 0.0 { return f64::INFINITY; }
+            4.73 * l * q.powf(1.852) / (2.31 * c.powf(1.852) * d.powf(4.87))
+        });
+        m.insert("elevation_psi".into(), |a| a[0] / 2.31);
+        m.insert("fittings_psi".into(), |a| a[0] * 0.25);  // NFPA 13 simplified: 25% of friction
+        m.insert("total_system_psi".into(), |a| a[0] + a[1] + a[2] + a[3]);
+        m.insert("pump_hp_from_system".into(), |a| {
+            if a[2] == 0.0 { return 0.0; }
+            a[0] * a[1] / (3960.0 * a[2])
+        });
 
         // ── Cybersecurity oracles (password, crypto) ───────────────
         // password_entropy(charset_size, length) → bits

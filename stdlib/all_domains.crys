@@ -13,8 +13,9 @@ oracle nfpa13_area_density(area_ft2: float) -> float:
 oracle nfpa13_sprinkler(K: float, P: float) -> float:
     return K * (P ^ 0.5)
 
-oracle nfpa13_sprinkler_count(area_ft2: float, coverage_per_head: float) -> float:
-    return area_ft2 / coverage_per_head
+// nfpa13_sprinkler_count: implemented as builtin with ceiling
+// ceil(area_ft2 / coverage_per_head) — fractional heads always round UP (NFPA 13)
+// e.g. 1000 ft² / 130 ft²/head = 7.69 → 8 heads required
 
 oracle nfpa13_demand_flow(density: float, area_ft2: float, hose_stream: float) -> float:
     return density * area_ft2 + hose_stream
@@ -31,8 +32,9 @@ oracle nfpa20_150pct_flow(rated_Q: float) -> float:
 oracle nfpa20_head_pressure(h_ft: float) -> float:
     return h_ft * 0.433
 
-oracle nfpa72_detector_count(area_ft2: float, spacing_ft: float) -> float:
-    return area_ft2 / (spacing_ft * spacing_ft)
+// nfpa72_detector_count: implemented as builtin with ceiling
+// ceil(area_ft2 / (spacing_ft^2)) — fractional detectors always round UP (NFPA 72)
+// e.g. 2500 ft² at 50ft spacing = 2500/2500 = 1.0 → 1 detector
 
 oracle nfpa101_egress_capacity(N: float, flow_rate: float) -> float:
     return N / flow_rate
@@ -53,6 +55,40 @@ plan plan_pump_sizing(Q_gpm: float, P_psi: float, eff: float):
     step shutoff_p:   nfpa20_shutoff_pressure(P_psi)
     step flow_150pct: nfpa20_150pct_flow(Q_gpm)
     step head_ft:     nfpa20_head_pressure(P_psi)
+
+// Complete fire suppression system — NFPA 13 / 14 / 20
+// Includes: friction loss (Hazen-Williams) + static elevation + fittings (25%) + residual pressure
+// Parameters:
+//   Q_gpm       — design flow in GPM (NFPA 13 hydraulic design flow)
+//   D_in        — pipe internal diameter in inches (min 0.75" = NPS 3/4)
+//   L_ft        — pipe equivalent length in feet (straight pipe + equivalent fittings if known)
+//   elev_ft     — static elevation from pump to highest sprinkler head, in feet
+//   P_residual  — required residual pressure at highest head, PSI
+//                 NFPA 13: min 15 PSI  |  NFPA 14 standpipe: min 65 PSI
+//   eff         — pump efficiency (0.0–1.0)
+//   C           — Hazen-Williams coefficient (100=old steel, 120=new steel, 150=PVC/CPVC)
+oracle hw_friction_loss_psi(Q_gpm: float, C: float, D_in: float, L_ft: float) -> float:
+    // h_f(PSI) = 4.73 * L(ft) * Q(GPM)^1.852 / (2.31 * C^1.852 * D(in)^4.87)
+    return 4.73 * L_ft * (Q_gpm ^ 1.852) / (2.31 * (C ^ 1.852) * (D_in ^ 4.87))
+
+oracle elevation_head_psi(elev_ft: float) -> float:
+    return elev_ft / 2.31
+
+oracle fittings_loss_psi(friction_psi: float) -> float:
+    // NFPA 13 §22.4.4.2 simplified: add 25% of pipe friction for fittings and valves
+    return friction_psi * 0.25
+
+oracle total_system_psi(friction: float, elevation: float, fittings: float, residual: float) -> float:
+    return friction + elevation + fittings + residual
+
+plan plan_full_fire_system(Q_gpm: float, D_in: float, L_ft: float, elev_ft: float, P_residual: float, eff: float, C: float):
+    step friction:      hw_friction_loss_psi(Q_gpm, C, D_in, L_ft)
+    step elevation:     elevation_head_psi(elev_ft)
+    step fittings:      fittings_loss_psi(friction)
+    step total_psi:     total_system_psi(friction, elevation, fittings, P_residual)
+    step pump_hp:       nfpa20_pump_hp(Q_gpm, total_psi, eff)
+    step shutoff_p:     nfpa20_shutoff_pressure(total_psi)
+    step flow_150pct:   nfpa20_150pct_flow(Q_gpm)
 
 plan plan_egress(N_persons: float, exits: float, door_width_in: float):
     step egress_time: nfpa101_egress_capacity(N_persons, 60.0)

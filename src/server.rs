@@ -391,6 +391,7 @@ fn validate_plan_physics(plan_name: &str, params: &std::collections::HashMap<Str
             let eff = params.get("eff").copied().unwrap_or(0.70);
             if q <= 0.0 { return Err(format!("assertion failed: flow must be positive (Q_gpm={} must be > 0)", q)); }
             if !q.is_finite() { return Err(format!("assertion failed: flow must be finite (Q_gpm={} — inf/NaN not allowed)", q)); }
+            if q < 1.0 { return Err(format!("assertion failed: Q_gpm={} below practical minimum (fire pumps: 25 GPM per NFPA 20; non-fire: 1 GPM)", q)); }
             if p <= 0.0 { return Err(format!("assertion failed: pressure must be positive (P_psi={} must be > 0)", p)); }
             if !p.is_finite() { return Err(format!("assertion failed: pressure must be finite (P_psi={} — inf/NaN not allowed)", p)); }
             if eff <= 0.0 { return Err(format!("assertion failed: efficiency must be positive (eff={} must be > 0)", eff)); }
@@ -400,11 +401,14 @@ fn validate_plan_physics(plan_name: &str, params: &std::collections::HashMap<Str
         }
         "plan_sprinkler_system" => {
             let k = params.get("K").copied().unwrap_or(0.0);
-            let p = params.get("P_psi").copied().unwrap_or(0.0);
-            let area = params.get("area_sqft").or(params.get("area")).copied().unwrap_or(0.0);
+            let p = params.get("P_avail").copied().unwrap_or(0.0);
+            let area = params.get("area_ft2").copied().unwrap_or(0.0);
             if k <= 0.0 { return Err(format!("assertion failed: K-factor must be positive (K={})", k)); }
-            if p < 0.0 { return Err(format!("assertion failed: pressure must be non-negative (P_psi={})", p)); }
-            if area < 0.0 { return Err(format!("assertion failed: area must be non-negative (area={})", area)); }
+            if k < 1.4 { return Err(format!("assertion failed: K={} below NFPA 13 minimum (K=1.4). Standard K values: 1.4, 2.0, 2.8, 4.2, 5.6, 8.0, 11.2, 14.0, 16.8, 19.6, 22.4, 25.2, 28.0", k)); }
+            if k > 28.0 { return Err(format!("assertion failed: K={} exceeds NFPA 13 max (K=28.0 ESFR). Check units.", k)); }
+            if p < 7.0 { return Err(format!("assertion failed: P_avail={} PSI below minimum -- NFPA 13 absolute minimum 7 PSI; design minimum 15 PSI", p)); }
+            if area <= 0.0 { return Err(format!("assertion failed: area_ft2={} must be positive", area)); }
+            if area > 52_000.0 { return Err(format!("assertion failed: area_ft2={} exceeds NFPA 13 max (52,000 ft2). Split into zones.", area)); }
         }
         "plan_voltage_drop" => {
             // Plan params: I (current A), L_m (length m), A_mm2 (conductor area mm2)
@@ -434,7 +438,8 @@ fn validate_plan_physics(plan_name: &str, params: &std::collections::HashMap<Str
             if q <= 0.0 { return Err(format!("assertion failed: flow must be positive (Q={})", q)); }
             if c <= 0.0 { return Err(format!("assertion failed: Hazen-Williams C must be positive (C={})", c)); }
             if d <= 0.0 { return Err(format!("assertion failed: pipe diameter must be positive (D={})", d)); }
-            if d < 0.001 { return Err(format!("assertion failed: pipe diameter D={} is below physical minimum (0.001 = 1mm). Near-zero diameter causes numerical overflow — smallest standard pipe is NPS 1/8 inch = 0.00635m.", d)); }
+            if d < 0.006 { return Err(format!("assertion failed: D={:.6}m = {:.3}in below engineering minimum. Smallest commercial pipe: NPS 1/8in = 6.35mm. NFPA 13 fire branch min: 1in = 0.0254m. Near-zero D causes overflow. — Smallest commercial pipe: NPS 1/8in = 6.35mm. NFPA 13 fire branch min: 1in = 0.0254m.", d, d*39.3701)); }
+            if d > 10.0 { return Err(format!("assertion failed: D={}m exceeds practical max (10m / 33ft). Check units -- mm instead of m?", d)); }
             if l <= 0.0 { return Err(format!("assertion failed: pipe length must be positive (L={})", l)); }
             if l > 1_000_000.0 { return Err(format!("assertion failed: pipe length L={} km exceeds plausible engineering range (max 1,000 km)", l/1000.0)); }
         }
@@ -465,6 +470,25 @@ fn validate_plan_physics(plan_name: &str, params: &std::collections::HashMap<Str
             for (k, v) in params.iter() {
                 check_metric(k, *v)?;
             }
+        }
+        "plan_full_fire_system" => {
+            let q   = params.get("Q_gpm").copied().unwrap_or(0.0);
+            let d   = params.get("D_in").copied().unwrap_or(0.0);
+            let l   = params.get("L_ft").copied().unwrap_or(0.0);
+            let elv = params.get("elev_ft").copied().unwrap_or(-1.0);
+            let pr  = params.get("P_residual").copied().unwrap_or(-1.0);
+            let eff = params.get("eff").copied().unwrap_or(0.0);
+            let c_hw = params.get("C").copied().unwrap_or(0.0);
+            if q <= 0.0 || !q.is_finite() { return Err(format!("assertion failed: Q_gpm={} must be positive and finite", q)); }
+            if d < 0.75 { return Err(format!("assertion failed: D_in={} below minimum -- NFPA 13 branch min 1in; absolute min 3/4in (D_in=0.75)", d)); }
+            if d > 36.0 { return Err(format!("assertion failed: D_in={} exceeds max (36in). Typical fire mains: 4-12in.", d)); }
+            if l <= 0.0 || !l.is_finite() { return Err(format!("assertion failed: L_ft={} must be positive -- pipe equivalent length in feet", l)); }
+            if l > 100_000.0 { return Err(format!("assertion failed: L_ft={} exceeds 100,000 ft. Segment the hydraulic calculation.", l)); }
+            if elv < 0.0 { return Err(format!("assertion failed: elev_ft={} must be >= 0 -- elevation from pump to highest head in feet (0 for single-story)", elv)); }
+            if elv > 2_000.0 { return Err(format!("assertion failed: elev_ft={} exceeds 2,000 ft (~200 stories). Split into pump zones.", elv)); }
+            if pr < 0.0 { return Err(format!("assertion failed: P_residual={} PSI must be >= 0. NFPA 13: 15 PSI min; NFPA 14 standpipe: 65 PSI min", pr)); }
+            if eff <= 0.0 || eff > 1.0 { return Err(format!("assertion failed: eff={} must be in (0, 1.0] -- typical centrifugal pump: 0.60-0.85", eff)); }
+            if c_hw < 80.0 || c_hw > 160.0 { return Err(format!("assertion failed: C={} out of range [80,160]. C=80: corroded steel; C=100: old steel; C=120: new steel; C=150: PVC/CPVC", c_hw)); }
         }
         _ => {}
     }
