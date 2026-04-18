@@ -8,7 +8,7 @@ Not an estimator. Not a model. A compiled oracle engine — physics expressions 
 variance across 20 repeated runs  = 0.000000000000  (not "near zero" — exactly zero)
 panics on 100,000 adversarial inputs = 0
 jitter σ = 4,922 ns vs C++ σ = 850,000 ns  (173× more stable)
-throughput = 77M+ simulations/sec
+throughput = 123M+ simulations/sec
 ```
 
 ---
@@ -153,7 +153,7 @@ CRYS-L DSL source (.crysl)
 Cranelift JIT → AVX2 native binary
 Branchless float predicates (no NaN, no UB)
 OracleCache — plans served at nanosecond latency
-  ↓ 77M+ simulations/sec
+  ↓ 123M+ simulations/sec
 Pareto optimizer — full parameter space sweep
 3-objective: efficiency · cost · compliance
 Returns all Pareto-optimal solutions
