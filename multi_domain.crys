@@ -1,0 +1,60 @@
+# CRYS-L Example — Multi-Domain Router
+# Carga 6 crystals, enruta automáticamente por patrón
+# Qomni AI Lab · Condesi Perú · 2026
+
+# ── Crystals ──────────────────────────────────────────────────
+crystal hidraulica    = load @mmap "hidraulica.crystal"
+crystal contabilidad  = load @mmap "contabilidad.crystal"
+crystal legal_peru    = load @mmap "legal_peru.crystal"
+crystal whatsapp      = load @mmap "whatsapp_ventas.crystal"
+crystal tecnico_it    = load @mmap "tecnico_it.crystal"
+crystal general       = load @mmap "general.crystal"
+crystal nfpa          = load @mmap "nfpa_electrico.crystal"
+
+# ── Oracles ───────────────────────────────────────────────────
+oracle igv(base: f32) -> f32:
+    return base * 0.18
+
+oracle manning(n: f32, R: f32, S: f32) -> f32:
+    return (1.0 / n) * R ^ (2.0 / 3.0) * S ^ 0.5
+
+oracle cuota_hipoteca(P: f32, i: f32, n: i32) -> f32:
+    # Cuota mensual: P * i / (1 - (1+i)^-n)
+    return P * i / (1.0 - (1.0 + i) ^ (-1 * n))
+
+# ── Pipelines ─────────────────────────────────────────────────
+pipe factura(monto: f32):
+    igv_val = igv(monto)
+    v = encode(igv_val, 4864)
+    result = contabilidad.infer(x=v)
+    -> respond(result)
+
+pipe caudal(n: f32, R: f32, S: f32):
+    Q = manning(n, R, S)
+    v = encode(Q, 4864)
+    result = hidraulica.infer(x=v)
+    -> respond(result)
+
+# ── Routing global ────────────────────────────────────────────
+route "IGV*"             -> pipe:factura
+route "factura*"         -> pipe:factura
+route "planilla*"        -> crystal:contabilidad
+route "Manning*"         -> pipe:caudal
+route "caudal*"          -> crystal:hidraulica
+route "contrato*"        -> crystal:legal_peru
+route "SUNAFIL*"         -> crystal:legal_peru
+route "liquidación*"     -> crystal:legal_peru
+route "WhatsApp*"        -> crystal:whatsapp
+route "script*"          -> crystal:whatsapp
+route "nginx*"           -> crystal:tecnico_it
+route "docker*"          -> crystal:tecnico_it
+route "NFPA*"            -> crystal:nfpa
+route "rociador*"        -> crystal:nfpa
+route "detector*"        -> crystal:nfpa
+route "tablero*"         -> crystal:nfpa
+route *                  -> crystal:general
+
+# ── Hardware schedule ─────────────────────────────────────────
+schedule * .infer(x=v):
+    if avx2_available:  @avx2
+    else:               @cpu

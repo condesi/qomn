@@ -1,0 +1,39 @@
+// CRYS-L v2.0 — Example: Sistema Contra Incendios
+// Demonstrates typed units, oracle declarations, and plan execution
+// Percy Rojas M. · Qomni AI Lab · 2026
+
+// ── Oracle declarations with physical unit types ──────────────────────
+
+oracle nfpa13_sprinkler(K: float, P: float) -> float:
+    // Q = K * sqrt(P)   [gpm = gpm/psi^0.5 * sqrt(psi)]
+    return K * (P ^ 0.5)
+
+oracle nfpa13_demanda(Q: float, K: float, h: float) -> float:
+    // P_demand = (Q/K)^2 + h
+    return (Q / K) * (Q / K) + h
+
+oracle nfpa20_bomba_hp(Q: float, P: float, eff: float) -> float:
+    // HP = Q * P / (3960 * eff)
+    return Q * P / (3960.0 * eff)
+
+oracle nfpa72_detectores(area: float, spacing: float) -> float:
+    // n = ceil(area / spacing^2)
+    return area / (spacing * spacing)
+
+oracle nfpa13_area_densidad(area: float) -> float:
+    // Standard density 0.15 gpm/ft2 for ordinary hazard
+    return 0.15
+
+oracle nfpa13_count(area: float, densidad: float) -> float:
+    // n = area / 12.1 m2 per sprinkler (NFPA 13 ordinary hazard)
+    return area / 12.1
+
+// ── Plan declaration ──────────────────────────────────────────────────
+
+plan plan_sistema_incendios(area: float, K: float, P_disponible: float):
+    step densidad:     nfpa13_area_densidad(area)
+    step Q_sprinkler:  nfpa13_sprinkler(K, P_disponible)
+    step n_rociadores: nfpa13_count(area, densidad)
+    step Q_total:      nfpa13_demanda(Q_sprinkler, K, 10.0)
+    step HP:           nfpa20_bomba_hp(Q_total, P_disponible, 0.70)
+    step n_detectores: nfpa72_detectores(area, 50.0)

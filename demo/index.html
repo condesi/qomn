@@ -1,0 +1,2002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRYS-L: Deterministic Engineering AI — 130M ops/s, Branchless AVX2 JIT</title>
+<meta name="description" content="CRYS-L compiles engineering physics to Cranelift JIT + AVX2, achieving 130M evaluations/second with IEEE-754 exact results. Open source Apache-2.0.">
+<meta name="keywords" content="CRYS-L, deterministic AI, engineering computation, Cranelift JIT, AVX2, branchless SIMD, Rust DSL, NFPA 20">
+<meta property="og:title" content="CRYS-L: 130M ops/s Deterministic Engineering AI">
+<meta property="og:description" content="Branchless float masks, Cranelift JIT, AVX2. 130M evals/sec. Verify with curl.">
+<meta property="og:url" content="https://qomni.clanmarketer.com/crysl/">
+<meta name="robots" content="index, follow">
+<style>
+/* ── Reset & Base ─────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;--bg2:#0f1424;--bg3:#151b2e;--panel:#111729;
+  --border:#1a2240;--border-glow:#00f0ff22;
+  --cyan:#00f0ff;--magenta:#ff00ff;--green:#00ff88;--yellow:#ffd600;--red:#ff3355;
+  --text:#c8d0e8;--text2:#8892b0;--text3:#4a5270;
+  --mono:'JetBrains Mono','Fira Code','SF Mono','Cascadia Code','Consolas',monospace;
+  --sidebar-w:320px;
+}
+html{font-size:14px}
+body{
+  background:var(--bg);color:var(--text);font-family:var(--mono);
+  min-height:100vh;overflow-x:hidden;
+}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+
+/* ── Animations ───────────────────────────────────────── */
+@keyframes glow-pulse{0%,100%{box-shadow:0 0 12px var(--cyan)44,0 0 40px var(--cyan)11}50%{box-shadow:0 0 24px var(--cyan)88,0 0 60px var(--cyan)33}}
+@keyframes glow-pulse-magenta{0%,100%{box-shadow:0 0 12px var(--magenta)44,0 0 40px var(--magenta)11}50%{box-shadow:0 0 24px var(--magenta)88,0 0 60px var(--magenta)33}}
+@keyframes glow-pulse-green{0%,100%{box-shadow:0 0 12px var(--green)44,0 0 40px var(--green)11}50%{box-shadow:0 0 24px var(--green)88,0 0 60px var(--green)33}}
+@keyframes counter-flash{0%{color:var(--cyan);text-shadow:0 0 20px var(--cyan)}100%{color:inherit;text-shadow:none}}
+@keyframes slide-in{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slide-in-right{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes dot-pulse{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes sweep-count{0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}}
+@keyframes hero-gradient{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes border-travel{0%{background-position:0% 0}100%{background-position:200% 0}}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+@keyframes pulse-ring{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.5);opacity:0}}
+
+/* ── HERO HEADER ──────────────────────────────────────── */
+.hero{
+  position:relative;padding:2rem 2.5rem 1.5rem;
+  background:linear-gradient(135deg,#0a0e1a 0%,#0d1a2e 40%,#1a0d2e 70%,#0a0e1a 100%);
+  background-size:200% 200%;
+  animation:hero-gradient 12s ease infinite;
+  border-bottom:1px solid var(--border);
+  overflow:hidden;
+}
+.hero::after{
+  content:'';position:absolute;left:0;bottom:0;width:100%;height:2px;
+  background:linear-gradient(90deg,transparent 0%,var(--cyan) 30%,var(--magenta) 70%,transparent 100%);
+}
+.hero-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:1rem}
+.hero-brand h1{
+  font-size:2.4rem;font-weight:800;letter-spacing:.12em;
+  background:linear-gradient(135deg,var(--cyan),#66ffff 40%,var(--magenta));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  line-height:1;
+}
+.hero-brand .tagline{
+  font-size:.8rem;color:var(--text2);font-weight:400;letter-spacing:.04em;margin-top:.3rem;
+}
+.hero-health{display:flex;align-items:center;gap:.5rem;font-size:.75rem;color:var(--text2)}
+.health-dot{
+  width:10px;height:10px;border-radius:50%;
+  background:var(--red);transition:background .3s;
+  animation:dot-pulse 2s infinite;
+}
+.health-dot.ok{background:var(--green);box-shadow:0 0 8px var(--green)88}
+.health-dot.err{background:var(--red);box-shadow:0 0 8px var(--red)88}
+
+/* ── KPI Bar ──────────────────────────────────────────── */
+.kpi-bar{
+  display:flex;gap:2rem;flex-wrap:wrap;
+}
+.kpi{
+  display:flex;align-items:center;gap:.5rem;
+  background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  padding:.5rem 1rem;min-width:180px;
+  transition:border-color .3s,box-shadow .3s;
+}
+.kpi:hover{border-color:var(--cyan)66}
+.kpi-icon{font-size:1.2rem;flex-shrink:0}
+.kpi-value{font-size:1.1rem;font-weight:700;color:var(--cyan)}
+.kpi-label{font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em}
+
+/* ── ACTION BUTTONS ───────────────────────────────────── */
+.action-bar{
+  display:flex;gap:1rem;padding:1rem 2.5rem;
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;
+}
+.action-btn{
+  flex:1;max-width:280px;
+  display:flex;align-items:center;justify-content:center;gap:.6rem;
+  font-family:var(--mono);font-size:.9rem;font-weight:700;
+  padding:.85rem 1.5rem;border-radius:8px;
+  cursor:pointer;text-transform:uppercase;letter-spacing:.1em;
+  transition:all .25s;position:relative;overflow:hidden;
+  border:2px solid;
+}
+.action-btn::before{
+  content:'';position:absolute;inset:0;opacity:0;
+  transition:opacity .25s;border-radius:6px;
+}
+.action-btn:active{transform:scale(.96)}
+.action-btn.loading{pointer-events:none;opacity:.7}
+
+.action-btn.compute{
+  background:var(--cyan)11;border-color:var(--cyan);color:var(--cyan);
+  animation:glow-pulse 3s ease-in-out infinite;
+}
+.action-btn.compute:hover{background:var(--cyan)22;box-shadow:0 0 30px var(--cyan)44}
+
+.action-btn.optimize{
+  background:var(--magenta)11;border-color:var(--magenta);color:var(--magenta);
+  animation:glow-pulse-magenta 3s ease-in-out infinite .5s;
+}
+.action-btn.optimize:hover{background:var(--magenta)22;box-shadow:0 0 30px var(--magenta)44}
+
+.action-btn.live{
+  background:var(--green)11;border-color:var(--green);color:var(--green);
+  animation:glow-pulse-green 3s ease-in-out infinite 1s;
+}
+.action-btn.live:hover{background:var(--green)22;box-shadow:0 0 30px var(--green)44}
+.action-btn.live.active{
+  background:var(--green)33;
+  animation:none;
+  box-shadow:0 0 30px var(--green)66;
+}
+
+/* ── LAYOUT ───────────────────────────────────────────── */
+.app-layout{
+  display:flex;min-height:calc(100vh - 14rem);
+}
+.sidebar{
+  width:var(--sidebar-w);min-width:var(--sidebar-w);
+  background:var(--panel);border-right:1px solid var(--border);
+  padding:1.25rem;overflow-y:auto;
+  transition:margin-left .3s,opacity .3s;
+}
+.sidebar.collapsed{margin-left:calc(-1 * var(--sidebar-w));opacity:0;pointer-events:none}
+.sidebar-toggle{
+  position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:200;
+  background:var(--bg2);border:1px solid var(--border);border-left:none;
+  color:var(--text3);font-size:.75rem;padding:.5rem .3rem;
+  cursor:pointer;border-radius:0 4px 4px 0;
+  transition:color .2s,border-color .2s;
+  font-family:var(--mono);
+}
+.sidebar-toggle:hover{color:var(--cyan);border-color:var(--cyan)66}
+.main-content{
+  flex:1;padding:2rem 2.5rem;overflow-y:auto;
+}
+
+/* ── Form Elements ────────────────────────────────────── */
+label{display:block;font-size:.65rem;color:var(--text2);margin-bottom:.25rem;text-transform:uppercase;letter-spacing:.08em}
+select,input[type="text"],input[type="number"],textarea{
+  width:100%;background:var(--bg2);border:1px solid var(--border);
+  color:var(--text);font-family:var(--mono);font-size:.8rem;
+  padding:.5rem .65rem;border-radius:4px;outline:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+select:focus,input:focus,textarea:focus{
+  border-color:var(--cyan);box-shadow:0 0 0 3px var(--cyan)15;
+}
+textarea{resize:vertical;min-height:60px}
+.field{margin-bottom:.85rem}
+.param-grid{display:grid;gap:.5rem}
+
+/* ── Sidebar Sections ─────────────────────────────────── */
+.sidebar-section{
+  background:var(--bg);border:1px solid var(--border);border-radius:6px;
+  padding:1rem;margin-bottom:1rem;
+}
+.sidebar-section-title{
+  font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--cyan);margin-bottom:.75rem;
+  display:flex;align-items:center;gap:.4rem;
+}
+.sidebar-section-title::before{
+  content:'';display:inline-block;width:3px;height:12px;
+  background:var(--cyan);border-radius:1px;
+}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
+  font-family:var(--mono);font-size:.7rem;font-weight:600;
+  padding:.45rem .9rem;border-radius:4px;border:1px solid;cursor:pointer;
+  text-transform:uppercase;letter-spacing:.06em;
+  transition:all .2s;
+}
+.btn:active{transform:scale(.97)}
+.btn-cyan{background:transparent;border-color:var(--cyan);color:var(--cyan)}
+.btn-cyan:hover{background:var(--cyan)15;box-shadow:0 0 12px var(--cyan)22}
+.btn-magenta{background:transparent;border-color:var(--magenta);color:var(--magenta)}
+.btn-magenta:hover{background:var(--magenta)15;box-shadow:0 0 12px var(--magenta)22}
+.btn-green{background:transparent;border-color:var(--green);color:var(--green)}
+.btn-green:hover{background:var(--green)15;box-shadow:0 0 12px var(--green)22}
+
+/* ── RESULT CARDS ─────────────────────────────────────── */
+.result-container{animation:slide-in .4s ease-out}
+.empty-state{
+  text-align:center;padding:6rem 2rem;color:var(--text3);
+}
+.empty-state .icon{font-size:4rem;margin-bottom:1.5rem;opacity:.2}
+.empty-state p{font-size:.85rem;max-width:360px;margin:0 auto;line-height:1.7}
+
+.result-card{
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:1.5rem;margin-bottom:1.25rem;
+  animation:slide-in .35s ease-out both;
+  transition:border-color .3s;
+}
+.result-card:hover{border-color:var(--cyan)44}
+.result-card.highlight{
+  border-color:var(--cyan)88;
+  box-shadow:0 0 20px var(--cyan)15;
+}
+
+/* Smart interpretation cards */
+.smart-card{
+  background:linear-gradient(135deg,var(--bg2) 0%,var(--bg) 100%);
+  border:1px solid var(--border);border-radius:8px;
+  padding:1.25rem 1.5rem;margin-bottom:.75rem;
+  display:flex;align-items:flex-start;gap:1rem;
+  animation:slide-in .3s ease-out both;
+}
+.smart-card .smart-icon{font-size:1.6rem;flex-shrink:0;line-height:1}
+.smart-card .smart-body{flex:1}
+.smart-card .smart-title{font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.25rem}
+.smart-card .smart-value{font-size:1.5rem;font-weight:700;color:var(--text);line-height:1.2}
+.smart-card .smart-sub{font-size:.7rem;color:var(--text2);margin-top:.35rem;line-height:1.5}
+.smart-card .smart-status{
+  font-size:.7rem;font-weight:600;padding:.2rem .6rem;
+  border-radius:4px;display:inline-block;margin-top:.4rem;
+}
+.smart-card .status-ok{background:var(--green)18;color:var(--green);border:1px solid var(--green)33}
+.smart-card .status-warn{background:var(--yellow)18;color:var(--yellow);border:1px solid var(--yellow)33}
+.smart-card .status-bad{background:var(--red)18;color:var(--red);border:1px solid var(--red)33}
+
+/* Latency badge */
+.latency-badge{
+  display:inline-flex;align-items:center;gap:.4rem;
+  background:var(--bg2);border:1px solid var(--border);border-radius:6px;
+  padding:.4rem .8rem;font-size:.75rem;margin-top:.5rem;
+}
+.latency-badge .lat-val{font-weight:700;font-size:1rem}
+.latency-badge.fast .lat-val{color:var(--green);text-shadow:0 0 10px var(--green)44}
+.latency-badge.mid .lat-val{color:var(--yellow);text-shadow:0 0 10px var(--yellow)44}
+.latency-badge.slow .lat-val{color:var(--red);text-shadow:0 0 10px var(--red)44}
+.latency-badge .lat-label{font-size:.6rem;color:var(--text3);text-transform:uppercase}
+
+/* Steps detail (collapsible) */
+.steps-collapsible{margin-top:.75rem}
+.steps-toggle{
+  font-size:.65rem;color:var(--text3);cursor:pointer;
+  display:flex;align-items:center;gap:.3rem;
+  user-select:none;padding:.3rem 0;
+  transition:color .2s;
+}
+.steps-toggle:hover{color:var(--text2)}
+.steps-detail{display:none;margin-top:.5rem}
+.steps-detail.open{display:block;animation:slide-in .2s ease-out}
+
+.steps-table{width:100%;border-collapse:collapse;font-size:.7rem}
+.steps-table th{
+  text-align:left;color:var(--text3);font-size:.6rem;text-transform:uppercase;
+  letter-spacing:.08em;padding:.4rem .5rem;border-bottom:1px solid var(--border);
+}
+.steps-table td{
+  padding:.45rem .5rem;border-bottom:1px solid var(--border)66;
+  transition:background .3s;
+}
+.steps-table tr:hover td{background:var(--cyan)06}
+.steps-table .step-name{color:var(--cyan);font-weight:600}
+.steps-table .oracle-name{color:var(--text2);font-size:.65rem}
+.steps-table .step-value{color:var(--green);font-weight:600;text-align:right}
+.steps-table td.dirty{background:var(--yellow)18;border-left:2px solid var(--yellow)}
+
+/* ── OPTIMIZE PANEL ───────────────────────────────────── */
+.optimize-panel{
+  background:var(--panel);border:1px solid var(--magenta)33;border-radius:10px;
+  padding:1.5rem;margin-bottom:1.25rem;
+  animation:slide-in-right .4s ease-out;
+}
+.optimize-panel .opt-header{
+  font-size:.85rem;font-weight:700;color:var(--magenta);
+  margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;
+}
+.opt-counter{
+  font-size:2rem;font-weight:800;color:var(--magenta);text-align:center;
+  padding:1rem 0;animation:sweep-count 1s ease-in-out infinite;
+}
+.opt-counter .label{font-size:.7rem;color:var(--text3);font-weight:400;display:block;margin-top:.25rem}
+.opt-best{
+  background:linear-gradient(135deg,var(--magenta)08,var(--cyan)08);
+  border:1px solid var(--magenta)44;border-radius:8px;
+  padding:1.25rem;text-align:center;margin-top:1rem;
+}
+.opt-best .opt-best-title{
+  font-size:.9rem;font-weight:700;
+  background:linear-gradient(90deg,var(--magenta),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  margin-bottom:.75rem;
+}
+.opt-compare{width:100%;border-collapse:collapse;font-size:.7rem;margin-top:.75rem}
+.opt-compare th{color:var(--text3);font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;padding:.35rem .5rem;border-bottom:1px solid var(--border)}
+.opt-compare td{padding:.4rem .5rem;border-bottom:1px solid var(--border)44}
+.opt-compare .curr{color:var(--text2)}
+.opt-compare .best{color:var(--green);font-weight:700}
+.opt-compare .delta{font-size:.6rem;font-weight:600}
+.opt-compare .delta.positive{color:var(--green)}
+.opt-compare .delta.negative{color:var(--red)}
+
+/* ── LIVE MODE PANEL ──────────────────────────────────── */
+.live-panel{
+  background:var(--panel);border:1px solid var(--green)33;border-radius:10px;
+  padding:1.5rem;margin-bottom:1.25rem;
+  animation:slide-in-right .4s ease-out;
+}
+.live-panel .live-header{
+  font-size:.85rem;font-weight:700;color:var(--green);
+  margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;
+}
+.live-indicator{
+  display:flex;align-items:center;gap:.4rem;font-size:.65rem;
+}
+.live-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--green);
+  position:relative;
+}
+.live-dot::after{
+  content:'';position:absolute;inset:-4px;border-radius:50%;
+  border:2px solid var(--green);animation:pulse-ring 1.5s ease-out infinite;
+}
+.slider-group{margin-bottom:.6rem}
+.slider-row{
+  display:flex;align-items:center;gap:.5rem;
+}
+.slider-row label{margin-bottom:0;flex:0 0 85px;text-align:right;font-size:.6rem}
+.slider-row input[type="range"]{
+  flex:1;height:4px;-webkit-appearance:none;appearance:none;
+  background:var(--bg2);border-radius:2px;outline:none;border:none;
+}
+.slider-row input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+  background:var(--green);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 10px var(--green)66;
+}
+.slider-val{
+  flex:0 0 80px;text-align:right;font-size:.7rem;color:var(--green);font-weight:600;
+}
+.slider-delta{
+  flex:0 0 60px;text-align:right;font-size:.6rem;font-weight:600;
+}
+.slider-delta.up{color:var(--green)}
+.slider-delta.down{color:var(--red)}
+.slider-delta.same{color:var(--text3)}
+
+/* ── NL What-if banner ────────────────────────────────── */
+.whatif-banner{
+  background:linear-gradient(135deg,var(--cyan)08,var(--magenta)08);
+  border:1px solid var(--cyan)33;border-radius:8px;
+  padding:1rem 1.25rem;margin-bottom:1rem;
+  font-size:.75rem;color:var(--text2);
+  display:flex;align-items:center;gap:.75rem;
+  animation:slide-in .3s ease-out;
+}
+.whatif-banner .whatif-icon{font-size:1.2rem}
+.whatif-compare{
+  display:grid;grid-template-columns:1fr auto 1fr;gap:.5rem;
+  align-items:center;margin-top:.75rem;font-size:.7rem;
+}
+.whatif-compare .before{text-align:right;color:var(--text2)}
+.whatif-compare .arrow{color:var(--cyan);font-weight:700}
+.whatif-compare .after{color:var(--green);font-weight:700}
+
+/* ── Eval result ──────────────────────────────────────── */
+.eval-result{text-align:center;padding:2rem 0}
+.eval-result .eval-label{font-size:.7rem;color:var(--text3);margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.1em}
+.eval-result .eval-value{font-size:2.8rem;font-weight:800;color:var(--green)}
+
+/* ── JSON toggle ──────────────────────────────────────── */
+.json-toggle{
+  font-size:.6rem;color:var(--text3);cursor:pointer;
+  display:flex;align-items:center;gap:.3rem;margin-top:.5rem;
+  user-select:none;transition:color .2s;
+}
+.json-toggle:hover{color:var(--text2)}
+.json-raw{
+  background:var(--bg);border:1px solid var(--border);border-radius:4px;
+  padding:.75rem;font-size:.6rem;color:var(--text2);
+  max-height:250px;overflow:auto;white-space:pre-wrap;word-break:break-all;
+  margin-top:.5rem;display:none;
+}
+.json-raw.open{display:block;animation:fade-in .2s ease-out}
+
+/* ── Spinner ──────────────────────────────────────────── */
+.spinner{
+  display:inline-block;width:14px;height:14px;
+  border:2px solid currentColor;border-top-color:transparent;
+  border-radius:50%;animation:spin .5s linear infinite;
+}
+
+/* ── Human readout ────────────────────────────────────── */
+.human-readout{
+  background:var(--bg);border:1px solid var(--border);border-radius:6px;
+  padding:.85rem 1rem;font-size:.75rem;color:var(--text2);
+  line-height:1.7;white-space:pre-wrap;margin:.75rem 0;
+  max-height:200px;overflow:auto;
+}
+
+/* ── Footer ───────────────────────────────────────────── */
+footer{
+  background:var(--bg2);border-top:1px solid var(--border);
+  padding:.65rem 2.5rem;font-size:.6rem;color:var(--text3);
+  display:flex;justify-content:space-between;align-items:center;
+  letter-spacing:.03em;
+}
+
+/* ── Threat banner ────────────────────────────────────── */
+.threat-banner{
+  background:linear-gradient(135deg,var(--red)08,var(--bg2));
+  border:1px solid var(--red)33;border-radius:6px;
+  padding:.6rem 1rem;margin-bottom:1rem;
+  display:flex;align-items:center;gap:.75rem;font-size:.7rem;
+  animation:slide-in .3s ease-out;
+}
+.threat-banner.warn{border-color:var(--yellow)33;background:linear-gradient(135deg,var(--yellow)06,var(--bg2))}
+.threat-banner .threat-icon{font-size:1.2rem;flex-shrink:0}
+.threat-banner .threat-detail{flex:1;color:var(--text2)}
+.threat-banner .threat-title{font-weight:700;color:var(--red);margin-bottom:.1rem}
+.threat-banner.warn .threat-title{color:var(--yellow)}
+.threat-banner .threat-action{font-size:.6rem;padding:.2rem .5rem;border-radius:3px;background:var(--red)15;color:var(--red);border:1px solid var(--red)33;cursor:pointer;white-space:nowrap}
+.threat-banner.warn .threat-action{background:var(--yellow)15;color:var(--yellow);border-color:var(--yellow)33}
+
+/* ── Preset buttons ──────────────────────────────────── */
+#presetButtons .btn{
+  transition:all .2s;font-weight:500;
+  border-color:var(--border);color:var(--text2);
+}
+#presetButtons .btn:hover{
+  border-color:var(--cyan);color:var(--cyan);
+  background:var(--cyan)08;box-shadow:0 0 12px var(--cyan)15;
+}
+
+/* ── Responsive ───────────────────────────────────────── */
+@media(max-width:1000px){
+  .app-layout{flex-direction:column}
+  .sidebar{width:100%;min-width:100%;border-right:none;border-bottom:1px solid var(--border)}
+  .sidebar.collapsed{margin-left:0;margin-top:-300px}
+  .sidebar-toggle{display:none}
+  .action-bar{flex-wrap:wrap}
+  .action-btn{min-width:150px;font-size:.75rem;padding:.65rem 1rem}
+}
+@media(max-width:600px){
+  .hero{padding:1.5rem 1rem 1rem}
+  .hero-brand h1{font-size:1.8rem}
+  .kpi-bar{gap:1rem}
+  .action-bar{padding:.75rem 1rem}
+  .main-content{padding:1rem}
+  footer{flex-direction:column;gap:.25rem;text-align:center;padding:.65rem 1rem}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO HEADER ═══ -->
+<div class="hero">
+  <div class="hero-top">
+    <div class="hero-brand">
+      <h1>CRYS-L</h1>
+      <div class="tagline">Real-time engineering decision engine</div>
+    </div>
+    <div class="hero-health">
+      <div class="health-dot" id="healthDot"></div>
+      <span id="healthLabel">Connecting...</span>
+    </div>
+  </div>
+  <div class="kpi-bar">
+    <div class="kpi">
+      <span class="kpi-icon">&#9889;</span>
+      <div>
+        <div class="kpi-value" id="kpiLatency">-- &micro;s</div>
+        <div class="kpi-label">Last compute</div>
+      </div>
+    </div>
+    <div class="kpi">
+      <span class="kpi-icon">&#128640;</span>
+      <div>
+        <div class="kpi-value" id="kpiThroughput">-- /sec</div>
+        <div class="kpi-label">Scenarios/sec</div>
+      </div>
+    </div>
+    <div class="kpi">
+      <span class="kpi-icon">&#128202;</span>
+      <div>
+        <div class="kpi-value" id="kpiPlans">-- plans | -- oracles</div>
+        <div class="kpi-label">Loaded</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ACTION BUTTONS ═══ -->
+<div class="action-bar">
+  <button class="action-btn compute" id="btnCompute">
+    &#9889; Compute
+  </button>
+  <button class="action-btn optimize" id="btnOptimize">
+    &#128640; Optimize
+  </button>
+  <button class="action-btn live" id="btnLive">
+    &#128260; Live Mode
+  </button>
+</div>
+
+<!-- ═══ MAIN LAYOUT ═══ -->
+<div class="app-layout">
+
+  <!-- ── LEFT SIDEBAR ── -->
+  <div class="sidebar" id="sidebar">
+    <!-- Plan selector -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Plan</div>
+      <div class="field">
+        <label>Select Plan</label>
+        <select id="planSelect"><option value="">Loading plans...</option></select>
+      </div>
+      <div id="paramFields" class="param-grid"></div>
+    </div>
+
+    <!-- Quick Scenarios -->
+    <div class="sidebar-section" id="presetsSection">
+      <div class="sidebar-section-title">Quick Scenarios</div>
+      <div id="presetButtons" style="display:flex;flex-direction:column;gap:.4rem"></div>
+    </div>
+
+    <!-- Natural Language -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Natural Language</div>
+      <div class="field">
+        <label>Query (Spanish or English)</label>
+        <textarea id="intentInput" placeholder="bomba contra incendio 500 gpm 80 psi eficiencia 0.75" rows="3"></textarea>
+      </div>
+      <button class="btn btn-magenta" id="btnIntent" style="width:100%">Ask</button>
+    </div>
+
+    <!-- Expression Eval -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Expression</div>
+      <div class="field">
+        <label>Inline Expression</label>
+        <input type="text" id="evalInput" placeholder="500 * 0.06309 * 80 / 0.70">
+      </div>
+      <button class="btn btn-green" id="btnEval" style="width:100%">Eval</button>
+    </div>
+  </div>
+
+  <!-- Sidebar toggle -->
+  <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">&#9776;</button>
+
+  <!-- ── MAIN CONTENT ── -->
+  <div class="main-content" id="mainContent">
+
+    <div id="resultEmpty" class="empty-state">
+      <div class="icon" style="font-size:3rem;margin-bottom:.5rem">&#9889;</div>
+      <p style="font-size:1.1rem;font-weight:700;color:var(--cyan);margin-bottom:.5rem">Explore millions of engineering scenarios in milliseconds</p>
+      <p style="font-size:.75rem;color:var(--text3);max-width:400px">Pick a <strong style="color:var(--text2)">Quick Scenario</strong> from the left, or select a plan and hit <strong style="color:var(--cyan)">COMPUTE</strong>. Then try <strong style="color:var(--magenta)">OPTIMIZE</strong> to find the best configuration.</p>
+    </div>
+
+    <div id="resultArea" style="display:none"></div>
+
+  </div>
+</div>
+
+<!-- ═══ FOOTER ═══ -->
+<footer>
+  <span>CRYS-L v3.1 &middot; Cranelift JIT &middot; <span id="footerStats">-- plans &middot; -- oracles</span> &middot; Percy Rojas Masgo &middot; Qomni AI Lab</span>
+  <span id="footerVersion"></span>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+
+/* ── State ── */
+let plans = [];
+let currentPlan = null;
+let currentParams = {};
+let currentResult = null;
+let currentSteps = [];
+let previousResult = null;
+let reactiveSessionId = null;
+let reactiveBaseParams = {};
+let liveModeActive = false;
+let healthData = {};
+let lastComputeNs = 0;
+let lastScenariosPerSec = 0;
+
+/* ── Human-readable plan names ── */
+const PLAN_LABELS = {
+  plan_pump_sizing: {label:'Fire Pump Analysis', icon:'\u{1F525}', domain:'Fire Protection'},
+  plan_sprinkler_system: {label:'Sprinkler System Design', icon:'\u{1F4A7}', domain:'Fire Protection'},
+  plan_nfpa13_demand: {label:'NFPA 13 Water Demand', icon:'\u{1F4A7}', domain:'Fire Protection'},
+  plan_pipe_losses: {label:'Pipe Friction Losses', icon:'\u{1F527}', domain:'Fire Protection'},
+  plan_pressure: {label:'Pressure Analysis', icon:'\u{1F4CA}', domain:'Fire Protection'},
+  plan_pump_selection: {label:'Pump Selection', icon:'\u{2699}\uFE0F', domain:'Fire Protection'},
+  plan_egress: {label:'Emergency Egress', icon:'\u{1F6AA}', domain:'Fire Protection'},
+  plan_electrical_load: {label:'Electrical Load Calc', icon:'\u26A1', domain:'Electrical'},
+  plan_electrical_3ph: {label:'3-Phase Power', icon:'\u26A1', domain:'Electrical'},
+  plan_transformer: {label:'Transformer Sizing', icon:'\u26A1', domain:'Electrical'},
+  plan_voltage_drop: {label:'Voltage Drop', icon:'\u26A1', domain:'Electrical'},
+  plan_power_factor_correction: {label:'Power Factor Correction', icon:'\u26A1', domain:'Electrical'},
+  plan_beam_analysis: {label:'Beam Analysis', icon:'\u{1F3D7}\uFE0F', domain:'Structural'},
+  plan_column_design: {label:'Column Design', icon:'\u{1F3D7}\uFE0F', domain:'Structural'},
+  plan_footing: {label:'Footing Design', icon:'\u{1F3D7}\uFE0F', domain:'Structural'},
+  plan_solar_fv: {label:'Solar PV System', icon:'\u2600\uFE0F', domain:'Energy'},
+  plan_hvac_cooling: {label:'HVAC Cooling Load', icon:'\u2744\uFE0F', domain:'HVAC'},
+  plan_hvac_ventilation: {label:'Ventilation Design', icon:'\u{1F32C}\uFE0F', domain:'HVAC'},
+  plan_factura_peru: {label:'Factura Electr\u00F3nica Per\u00FA', icon:'\u{1F4B0}', domain:'Accounting'},
+  plan_planilla: {label:'Planilla de Pagos', icon:'\u{1F4B0}', domain:'Payroll'},
+  plan_break_even: {label:'Break-Even Analysis', icon:'\u{1F4C8}', domain:'Finance'},
+  plan_roi: {label:'Return on Investment', icon:'\u{1F4C8}', domain:'Finance'},
+  plan_irrigation: {label:'Irrigation Design', icon:'\u{1F33F}', domain:'Agriculture'},
+  plan_drip_irrigation: {label:'Drip Irrigation System', icon:'\u{1F33F}', domain:'Agriculture'},
+  plan_slope_stability: {label:'Slope Stability (FoS)', icon:'\u26F0\uFE0F', domain:'Geotechnical'},
+  plan_bmi_assessment: {label:'BMI Health Assessment', icon:'\u{1F3E5}', domain:'Health'},
+  plan_drug_dosing: {label:'Drug Dosing Calculator', icon:'\u{1F48A}', domain:'Health'},
+  plan_password_audit: {label:'Password Strength Audit', icon:'\u{1F512}', domain:'Security'},
+  plan_bcrypt_audit: {label:'Bcrypt Hash Cracking Audit', icon:'\u{1F510}', domain:'Security'},
+  plan_network_security: {label:'Network Security Score', icon:'\u{1F6E1}\uFE0F', domain:'Security'},
+  plan_telecom_link: {label:'Telecom Link Budget', icon:'\u{1F4E1}', domain:'Telecom'},
+};
+function planLabel(name) {
+  const info = PLAN_LABELS[name];
+  if (info) return info;
+  return {label: name.replace(/^plan_/, '').replace(/_/g, ' ').toUpperCase(), icon: '\u{1F4CA}', domain: ''};
+}
+
+/* ── Quick scenario presets ── */
+const PRESETS = [
+  {label:'\u{1F525} Fire Pump 500 GPM', plan:'plan_pump_sizing', params:{Q_gpm:500, P_psi:80, eff:0.70}},
+  {label:'\u{1F4A7} Sprinkler 5000 ft\u00B2', plan:'plan_sprinkler_system', params:{area_ft2:5000, K:5.6, P_avail:80, hose_stream:250}},
+  {label:'\u26A1 Electrical 5kW', plan:'plan_electrical_load', params:{P_w:5000, V:220, pf:0.9, L:50, A:35}},
+  {label:'\u{1F3D7}\uFE0F Beam 10kN', plan:'plan_beam_analysis', params:{P_kn:10, L_m:6, E_gpa:200, I_cm4:1000}},
+  {label:'\u2600\uFE0F Solar 15 kWh/day', plan:'plan_solar_fv', params:{kwh_daily:15, hsp:5.5, panel_wp:400, eff:0.85, cost_usd:0.5, tariff:0.22}},
+  {label:'\u{1F512} Password Audit', plan:'plan_password_audit', params:{charset_size:72, length:12, attempts_per_sec:1e10}},
+  {label:'\u{1F510} Bcrypt $2b$06$ (RTX 4090)', plan:'plan_bcrypt_audit', params:{cost_factor:6, charset_size:62, length:8, base_gpu_rate:7000000, dict_size:14000000}},
+];
+
+/* ── DOM refs ── */
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+/* ── API helpers ── */
+const API_BASE = '/crysl/api';
+async function api(method, path, body) {
+  const opts = {method, headers: {}};
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch(API_BASE + path, opts);
+  return r.json();
+}
+
+/* ── Health check ── */
+async function checkHealth() {
+  try {
+    const d = await api('GET', '/health');
+    healthData = d;
+    $('#healthDot').className = 'health-dot ok';
+    $('#healthLabel').textContent = 'Online';
+    const planCount = d.plans || '55';
+    const oracleCount = d.oracles || '171';
+    $('#kpiPlans').textContent = planCount + ' plans | ' + oracleCount + ' oracles';
+    $('#footerStats').textContent = planCount + ' plans \u00B7 ' + oracleCount + ' oracles';
+  } catch {
+    $('#healthDot').className = 'health-dot err';
+    $('#healthLabel').textContent = 'Offline';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 30000);
+
+/* ── Live threat context ── */
+let liveThreats = [];
+async function checkThreats() {
+  try {
+    const d = await api('GET', '/ot/analyze');
+    if (d && d.findings && d.findings.length > 0) {
+      liveThreats = d.findings;
+    } else {
+      // Simulated threats from DKP/NVD for demo
+      liveThreats = [];
+    }
+  } catch {
+    // OT endpoint may not exist — check NVD status
+    try {
+      const nvd = await api('GET', '/nvd/status');
+      if (nvd && nvd.total_ingested > 0) {
+        liveThreats = [{
+          severity: 'Suspicious', rule: 'NVD CVE Monitor',
+          detail: nvd.total_ingested + ' CVEs tracked (' + (nvd.age_human || 'recent') + ')',
+          action: 'Review /nvd/status'
+        }];
+      }
+    } catch { liveThreats = []; }
+  }
+  showThreatBanners();
+}
+
+function showThreatBanners() {
+  let container = document.getElementById('threatBanners');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'threatBanners';
+    const main = $('#mainContent');
+    main.insertBefore(container, main.firstChild);
+  }
+  container.innerHTML = '';
+  liveThreats.forEach(t => {
+    const isWarn = (t.severity || '').toLowerCase() !== 'compromised';
+    const div = document.createElement('div');
+    div.className = 'threat-banner' + (isWarn ? ' warn' : '');
+    div.innerHTML =
+      '<div class="threat-icon">' + (isWarn ? '\u26A0\uFE0F' : '\u{1F6A8}') + '</div>' +
+      '<div class="threat-detail">' +
+        '<div class="threat-title">' + (t.rule || 'Threat Detected') + '</div>' +
+        '<div>' + (t.detail || t.message || 'Anomaly in monitored systems') + '</div>' +
+      '</div>' +
+      '<div class="threat-action">' + (t.action || 'Review') + '</div>';
+    container.appendChild(div);
+  });
+}
+checkThreats();
+setInterval(checkThreats, 60000);
+
+/* ── Load plans ── */
+async function loadPlans() {
+  try {
+    const d = await api('GET', '/plans');
+    plans = Array.isArray(d) ? d : (d.plans || []);
+    const sel = $('#planSelect');
+    sel.innerHTML = '<option value="">-- select plan --</option>';
+    plans.forEach(p => {
+      const name = typeof p === 'string' ? p : (p.name || p.plan);
+      const o = document.createElement('option');
+      o.value = name;
+      const pi = planLabel(name);
+      o.textContent = pi.icon + ' ' + pi.label;
+      sel.appendChild(o);
+    });
+  } catch {
+    $('#planSelect').innerHTML = '<option value="">Failed to load</option>';
+  }
+}
+loadPlans();
+
+/* ── Preset buttons ── */
+(function buildPresets() {
+  const c = $('#presetButtons');
+  PRESETS.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-cyan';
+    btn.style.cssText = 'width:100%;text-align:left;font-size:.65rem;padding:.4rem .6rem';
+    btn.textContent = p.label;
+    btn.addEventListener('click', async () => {
+      // Set plan WITHOUT triggering change (which would overwrite our values)
+      currentPlan = p.plan;
+      const sel = $('#planSelect');
+      sel.removeEventListener('change', onPlanChange);
+      sel.value = p.plan;
+      setTimeout(() => sel.addEventListener('change', onPlanChange), 50);
+      // Set params with preset values
+      const container = $('#paramFields');
+      container.innerHTML = '';
+      Object.keys(p.params).forEach(k => {
+        const div = document.createElement('div');
+        div.className = 'field';
+        div.innerHTML = '<label>' + k + '</label><input type="number" step="any" data-param="' + k + '" value="' + p.params[k] + '" placeholder="0">';
+        container.appendChild(div);
+      });
+      currentParams = {...p.params};
+      // Auto-compute
+      $('#btnCompute').click();
+    });
+    c.appendChild(btn);
+  });
+})();
+
+/* ── Plan selection ── */
+function onPlanChange() {
+  currentPlan = $('#planSelect').value;
+  const container = $('#paramFields');
+  container.innerHTML = '';
+  if (!currentPlan) return;
+  const planObj = plans.find(p => (typeof p === 'string' ? p : (p.name || p.plan)) === currentPlan);
+  const params = planObj && planObj.params ? planObj.params : [];
+  params.forEach(pm => {
+    const pName = typeof pm === 'string' ? pm : (pm.name || pm);
+    const pDefault = (typeof pm === 'object' && pm.default !== undefined) ? pm.default : '';
+    const div = document.createElement('div');
+    div.className = 'field';
+    div.innerHTML = '<label>' + pName + '</label><input type="number" step="any" data-param="' + pName + '" value="' + pDefault + '" placeholder="0">';
+    container.appendChild(div);
+  });
+}
+$('#planSelect').addEventListener('change', onPlanChange);
+
+/* ── Gather params ── */
+function gatherParams() {
+  const params = {};
+  $$('#paramFields input[data-param]').forEach(inp => {
+    params[inp.dataset.param] = parseFloat(inp.value) || 0;
+  });
+  return params;
+}
+
+/* ── COMPUTE ── */
+$('#btnCompute').addEventListener('click', async function() {
+  if (!currentPlan) return;
+  const params = gatherParams();
+  currentParams = params;
+  this.classList.add('loading');
+  this.innerHTML = '<span class="spinner"></span> Computing...';
+  try {
+    const d = await api('POST', '/decision/analyze', {plan: currentPlan, params, execute: true});
+    if (currentResult) previousResult = currentResult;
+    currentResult = d;
+    const result = d.result || d;
+    currentSteps = (d.decision && d.decision.steps) || result.steps || d.steps || [];
+    lastComputeNs = result.total_ns || d.total_ns || d.latency_ns || 0;
+    updateKpiLatency(lastComputeNs);
+    showSmartResult(d);
+  } catch(e) {
+    showError(e.message);
+  }
+  this.classList.remove('loading');
+  this.innerHTML = '&#9889; Compute';
+});
+
+/* ── OPTIMIZE ── */
+$('#btnOptimize').addEventListener('click', async function() {
+  if (!currentPlan) return;
+  const params = gatherParams();
+  currentParams = params;
+
+  // Build sweep: +/-50% of current values, 10 steps
+  const sweep = {};
+  let outputStep = null;
+  const planObj = plans.find(p => (typeof p === 'string' ? p : (p.name || p.plan)) === currentPlan);
+  const planParams = planObj && planObj.params ? planObj.params : [];
+  planParams.forEach(pm => {
+    const pName = typeof pm === 'string' ? pm : (pm.name || pm);
+    const val = params[pName] || 100;
+    const lo = val * 0.5;
+    const hi = val * 1.5;
+    const step = (hi - lo) / 10;
+    if (step > 0) {
+      sweep[pName] = {min: lo, max: hi, step: step};
+    } else {
+      sweep[pName] = val;
+    }
+  });
+
+  // Try to guess output step from current result
+  if (currentSteps.length > 0) {
+    outputStep = currentSteps[currentSteps.length - 1].step;
+  }
+
+  this.classList.add('loading');
+  this.innerHTML = '<span class="spinner"></span> Optimizing...';
+
+  // Show exploring animation
+  const area = $('#resultArea');
+  area.style.display = 'block';
+  $('#resultEmpty').style.display = 'none';
+  area.innerHTML = '<div class="optimize-panel"><div class="opt-header">&#128640; OPTIMIZATION IN PROGRESS</div><div class="opt-counter" id="optCounter">Exploring scenarios...<span class="label">Please wait</span></div></div>';
+
+  try {
+    const d = await api('POST', '/plan/simulate', {plan: currentPlan, sweep, output_step: outputStep});
+    const scenarios = d.scenarios || 0;
+    const totalNs = d.total_ns || 0;
+    const results = d.results || [];
+
+    if (scenarios > 0 && totalNs > 0) {
+      lastScenariosPerSec = Math.round(scenarios / (totalNs / 1e9));
+      updateKpiThroughput(lastScenariosPerSec);
+    }
+
+    // First do a compute of current to have baseline
+    let baselineResult = currentResult;
+    if (!baselineResult) {
+      baselineResult = await api('POST', '/plan/execute', {plan: currentPlan, params});
+      currentResult = baselineResult;
+      currentSteps = (baselineResult.result || baselineResult).steps || [];
+    }
+
+    showOptimizeResult(d, params, baselineResult);
+  } catch(e) {
+    area.innerHTML = '<div class="result-card"><p style="color:var(--red)">Optimization failed: ' + e.message + '</p></div>';
+  }
+  this.classList.remove('loading');
+  this.innerHTML = '&#128640; Optimize';
+});
+
+/* ── LIVE MODE ── */
+$('#btnLive').addEventListener('click', async function() {
+  if (liveModeActive) {
+    // Turn off
+    liveModeActive = false;
+    reactiveSessionId = null;
+    this.classList.remove('active');
+    this.innerHTML = '&#128260; Live Mode';
+    // Remove live panel if present
+    const lp = document.getElementById('livePanelContainer');
+    if (lp) lp.remove();
+    return;
+  }
+  if (!currentPlan) return;
+  const params = gatherParams();
+  currentParams = params;
+  reactiveBaseParams = {...params};
+
+  this.classList.add('loading');
+  this.innerHTML = '<span class="spinner"></span> Starting...';
+  try {
+    const d = await api('POST', '/plan/reactive/create', {plan: currentPlan, params});
+    reactiveSessionId = d.session_id;
+    liveModeActive = true;
+    this.classList.add('active');
+    this.classList.remove('loading');
+    this.innerHTML = '&#128308; LIVE (click to stop)';
+
+    // Store initial result
+    if (d.result) {
+      currentResult = d;
+      currentSteps = (d.result || d).steps || [];
+    }
+
+    showLivePanel(params, d);
+  } catch(e) {
+    this.classList.remove('loading');
+    this.innerHTML = '&#128260; Live Mode';
+    showError('Failed to start live session: ' + e.message);
+  }
+});
+
+/* ── INTENT (NL) ── */
+$('#btnIntent').addEventListener('click', async function() {
+  const q = $('#intentInput').value.trim();
+  if (!q) return;
+
+  // What-if detection
+  const whatIfPatterns = /qu[eé]\s*pasa\s*si|what\s*if|si\s+aumento|si\s+cambio|si\s+reduzco|si\s+bajo|si\s+subo|if\s+i\s+(increase|decrease|change|reduce|raise)/i;
+  const isWhatIf = whatIfPatterns.test(q) && currentResult;
+
+  this.classList.add('loading');
+  this.innerHTML = '<span class="spinner"></span> Thinking...';
+
+  if (isWhatIf && currentResult) {
+    previousResult = currentResult;
+  }
+
+  try {
+    const d = await api('POST', '/intent', {q});
+    currentResult = d;
+    const result = d.result || d;
+    currentSteps = result.steps || [];
+    lastComputeNs = result.total_ns || d.total_ns || d.latency_ns || 0;
+    updateKpiLatency(lastComputeNs);
+
+    if (isWhatIf && previousResult) {
+      showWhatIfResult(d, previousResult, q);
+    } else {
+      showSmartResult(d);
+    }
+  } catch(e) { showError(e.message); }
+  this.classList.remove('loading');
+  this.textContent = 'Ask';
+});
+
+/* ── EVAL ── */
+$('#btnEval').addEventListener('click', async function() {
+  const expr = $('#evalInput').value.trim();
+  if (!expr) return;
+  this.classList.add('loading');
+  this.innerHTML = '<span class="spinner"></span>';
+  try {
+    const d = await api('POST', '/eval', {expr});
+    showEvalResult(d);
+  } catch(e) { showError(e.message); }
+  this.classList.remove('loading');
+  this.textContent = 'Eval';
+});
+
+/* ═══════════════════════════════════════════════════════════
+   SMART RESULT RENDERING
+   ═══════════════════════════════════════════════════════════ */
+
+function showSmartResult(d) {
+  const area = $('#resultArea');
+  area.style.display = 'block';
+  $('#resultEmpty').style.display = 'none';
+  area.innerHTML = '';
+
+  const result = d.result || d;
+  const steps = result.steps || [];
+  const totalNs = result.total_ns || d.total_ns || d.latency_ns || 0;
+  const rawPlanName = result.plan || d.plan || currentPlan || 'Result';
+  const pInfo = planLabel(rawPlanName);
+
+  // Hero header with human name
+  const hero = document.createElement('div');
+  hero.className = 'result-card highlight';
+  hero.style.cssText = 'text-align:center;padding:1.5rem;margin-bottom:1.5rem';
+  hero.innerHTML = '<div style="font-size:2rem;margin-bottom:.3rem">' + pInfo.icon + '</div>' +
+    '<div style="font-size:1.3rem;font-weight:800;color:var(--cyan);margin-bottom:.25rem">' + pInfo.label + '</div>' +
+    (pInfo.domain ? '<div style="display:inline-block;font-size:.6rem;padding:.15rem .6rem;border-radius:10px;background:var(--magenta)15;color:var(--magenta);border:1px solid var(--magenta)33">' + pInfo.domain + '</div>' : '') +
+    '<div style="margin-top:.75rem">' + buildLatencyBadge(totalNs) + '</div>';
+  area.appendChild(hero);
+
+  // Human readout if available
+  if (d.human) {
+    const humanDiv = document.createElement('div');
+    humanDiv.className = 'human-readout';
+    humanDiv.textContent = d.human;
+    area.appendChild(humanDiv);
+  }
+
+  // PRIMARY result — first step gets a BIG card
+  if (steps.length > 0) {
+    const primary = buildSmartCard(steps[0], 0, steps.length);
+    primary.style.cssText += ';border:2px solid var(--cyan)44;box-shadow:0 0 20px var(--cyan)10;padding:1.5rem 1.75rem';
+    primary.querySelector('.smart-value').style.fontSize = '2.2rem';
+    area.appendChild(primary);
+  }
+
+  // Secondary results — smaller cards
+  steps.slice(1).forEach((s, i) => {
+    const card = buildSmartCard(s, i + 1, steps.length);
+    card.style.animationDelay = ((i + 1) * 0.08) + 's';
+    card.style.opacity = '0.85';
+    area.appendChild(card);
+  });
+
+  // Latency badge
+  const latDiv = document.createElement('div');
+  latDiv.style.cssText = 'display:flex;align-items:center;gap:1rem;margin-top:.75rem;flex-wrap:wrap';
+  latDiv.innerHTML = buildLatencyBadge(totalNs) + buildJitBadge(totalNs);
+  area.appendChild(latDiv);
+
+  // ═══ DECISION ENGINE — the key differentiator ═══
+  const serverDecision = d.decision || null;
+  if (serverDecision && serverDecision.analysis && serverDecision.analysis.length > 0) {
+    area.appendChild(buildServerDecisionPanel(serverDecision));
+  } else {
+    area.appendChild(buildDecisionPanel(steps, rawPlanName));
+  }
+
+  // Auto-simulate in background (non-blocking)
+  if (currentPlan && Object.keys(currentParams).length > 0) {
+    runAutoOptimize(rawPlanName, currentParams, steps).then(optPanel => {
+      if (optPanel) area.appendChild(optPanel);
+    });
+  }
+
+  // Collapsible steps table
+  if (steps.length > 0) {
+    area.appendChild(buildStepsCollapsible(steps));
+  }
+
+  // JSON toggle
+  area.appendChild(buildJsonToggle(d));
+}
+
+/* ═══ SERVER-SIDE DECISION ENGINE ═══ */
+function buildServerDecisionPanel(dec) {
+  const panel = document.createElement('div');
+  const status = dec.status || 'valid';
+  const borderColor = status === 'critical' ? 'var(--red)' : status === 'warning' ? 'var(--yellow)' : 'var(--green)';
+  panel.className = 'result-card';
+  panel.style.cssText = 'border-color:' + borderColor + '44;background:linear-gradient(135deg,var(--panel),' + borderColor + '03)';
+
+  const statusIcons = {valid:'\u2705', warning:'\u26A0\uFE0F', critical:'\u274C'};
+  const statusLabels = {valid:'System Valid', warning:'Review Recommended', critical:'Action Required'};
+
+  let html = '<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem">';
+  html += '<div style="font-size:1.8rem">' + (statusIcons[status] || '\u2705') + '</div>';
+  html += '<div style="flex:1">';
+  html += '<div style="font-size:1rem;font-weight:800;color:' + borderColor + '">' + (statusLabels[status] || status) + '</div>';
+  html += '<div style="font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">CRYS-L Decision Engine v2</div>';
+  html += '</div>';
+  // Risk badge
+  const riskColor = (dec.risk_level === 'CRITICAL' || dec.risk_level === 'HIGH') ? 'var(--red)' : dec.risk_level === 'MEDIUM' ? 'var(--yellow)' : 'var(--green)';
+  html += '<div style="text-align:right">';
+  html += '<div style="font-size:1.4rem;font-weight:800;color:' + riskColor + '">' + (dec.risk_score || 0).toFixed(1) + '</div>';
+  html += '<div style="font-size:.55rem;color:var(--text3)">RISK / 10</div>';
+  html += '<div style="font-size:.65rem;font-weight:700;color:' + riskColor + '">' + (dec.risk_level || 'LOW') + '</div>';
+  html += '</div></div>';
+
+  // Analysis items
+  (dec.analysis || []).forEach(a => {
+    const aColor = a.status === 'critical' ? 'var(--red)' : a.status === 'warning' ? 'var(--yellow)' : 'var(--green)';
+    const aIcon = a.status === 'critical' ? '\u274C' : a.status === 'warning' ? '\u26A0\uFE0F' : '\u2714\uFE0F';
+    html += '<div style="display:flex;align-items:flex-start;gap:.5rem;padding:.45rem 0;border-bottom:1px solid var(--border)33;font-size:.75rem">';
+    html += '<span>' + aIcon + '</span>';
+    html += '<div style="flex:1"><span style="color:' + aColor + ';font-weight:600">' + (a.title || a.step) + '</span>';
+    if (a.detail) html += '<div style="font-size:.65rem;color:var(--text2);margin-top:.1rem">' + a.detail + '</div>';
+    if (a.recommendation) html += '<div style="font-size:.6rem;color:var(--cyan);margin-top:.2rem">\u2192 ' + a.recommendation + '</div>';
+    html += '</div></div>';
+  });
+
+  // Recommendations
+  if (dec.recommendations && dec.recommendations.length > 0) {
+    html += '<div style="margin-top:.75rem;padding-top:.5rem;border-top:1px solid var(--border)">';
+    html += '<div style="font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.4rem">Recommended Actions</div>';
+    dec.recommendations.forEach((r, i) => {
+      html += '<div style="display:flex;align-items:center;gap:.5rem;padding:.3rem 0;font-size:.7rem">';
+      html += '<span style="color:var(--cyan);font-weight:700">#' + (r.priority || i+1) + '</span>';
+      html += '<span style="color:var(--text)">' + (r.detail || r.action) + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  // Context bar
+  const ctx = dec.context || {};
+  if (ctx.twin_vars !== undefined || ctx.threats_active !== undefined) {
+    html += '<div style="display:flex;gap:1.5rem;margin-top:.75rem;padding-top:.5rem;border-top:1px solid var(--border);font-size:.6rem;color:var(--text3)">';
+    if (ctx.twin_vars !== undefined) html += '<span>Twin: ' + ctx.twin_vars + ' vars</span>';
+    if (ctx.threats_active !== undefined) html += '<span>Threats: ' + ctx.threats_active + ' active</span>';
+    if (ctx.cves_tracked !== undefined) html += '<span>CVEs: ' + ctx.cves_tracked + '</span>';
+    if (ctx.ot_status) html += '<span>OT: <span style="color:' + (ctx.ot_status === 'nominal' ? 'var(--green)' : 'var(--yellow)') + '">' + ctx.ot_status + '</span></span>';
+    if (dec.confidence !== undefined) html += '<span>Confidence: ' + (dec.confidence * 100).toFixed(0) + '%</span>';
+    html += '</div>';
+  }
+
+  panel.innerHTML = html;
+  return panel;
+}
+
+/* ═══ CLIENT-SIDE DECISION ENGINE (fallback) ═══ */
+function buildDecisionPanel(steps, planName) {
+  const panel = document.createElement('div');
+  panel.className = 'result-card';
+  panel.style.cssText = 'border-color:var(--green)44;background:linear-gradient(135deg,var(--panel),var(--green)03)';
+
+  const decisions = analyzeSteps(steps, planName);
+  const overallStatus = decisions.some(d => d.level === 'critical') ? 'critical'
+    : decisions.some(d => d.level === 'warning') ? 'warning' : 'valid';
+
+  const statusColors = {valid:'var(--green)', warning:'var(--yellow)', critical:'var(--red)'};
+  const statusIcons = {valid:'\u2705', warning:'\u26A0\uFE0F', critical:'\u274C'};
+  const statusLabels = {valid:'System Valid', warning:'Review Recommended', critical:'Action Required'};
+
+  let html = '<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem">';
+  html += '<div style="font-size:1.8rem">' + statusIcons[overallStatus] + '</div>';
+  html += '<div>';
+  html += '<div style="font-size:1rem;font-weight:800;color:' + statusColors[overallStatus] + '">' + statusLabels[overallStatus] + '</div>';
+  html += '<div style="font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">CRYS-L Decision Engine</div>';
+  html += '</div></div>';
+
+  // Recommendations
+  decisions.forEach(d => {
+    const color = d.level === 'critical' ? 'var(--red)' : d.level === 'warning' ? 'var(--yellow)' : 'var(--green)';
+    const icon = d.level === 'critical' ? '\u274C' : d.level === 'warning' ? '\u26A0\uFE0F' : '\u2714\uFE0F';
+    html += '<div style="display:flex;align-items:flex-start;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--border)44;font-size:.75rem">';
+    html += '<span>' + icon + '</span>';
+    html += '<div><span style="color:' + color + ';font-weight:600">' + d.title + '</span>';
+    html += '<div style="font-size:.65rem;color:var(--text2);margin-top:.15rem">' + d.detail + '</div></div>';
+    html += '</div>';
+  });
+
+  // Risk score
+  const riskScore = decisions.filter(d => d.level === 'critical').length * 3
+    + decisions.filter(d => d.level === 'warning').length;
+  const riskLabel = riskScore === 0 ? 'LOW' : riskScore <= 2 ? 'MEDIUM' : 'HIGH';
+  const riskColor = riskScore === 0 ? 'var(--green)' : riskScore <= 2 ? 'var(--yellow)' : 'var(--red)';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:.75rem;padding-top:.5rem;border-top:1px solid var(--border)">';
+  html += '<span style="font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.1em">Risk Level</span>';
+  html += '<span style="font-size:.85rem;font-weight:800;color:' + riskColor + '">' + riskLabel + '</span>';
+  html += '</div>';
+
+  panel.innerHTML = html;
+  return panel;
+}
+
+function analyzeSteps(steps, planName) {
+  const decisions = [];
+  const plan = (planName || '').toLowerCase();
+
+  steps.forEach(s => {
+    const name = (s.step || '').toLowerCase();
+    const val = typeof s.result === 'number' ? s.result : parseFloat(s.result) || 0;
+
+    // Pump HP rules
+    if (/hp|pump_hp|hp_required/.test(name)) {
+      if (val < 5) {
+        decisions.push({level:'valid', title:'Small pump sufficient (' + val.toFixed(1) + ' HP)', detail:'Standard fractional HP motor. No special starter needed.'});
+      } else if (val <= 50) {
+        const safeHP = Math.ceil(val * 1.2);
+        decisions.push({level:'valid', title:'Pump sizing: ' + val.toFixed(1) + ' HP', detail:'Recommend ' + safeHP + ' HP motor with 20% safety margin. Standard across-the-line starter.'});
+      } else if (val <= 200) {
+        decisions.push({level:'warning', title:'Large pump: ' + val.toFixed(0) + ' HP', detail:'Requires soft starter or VFD. Consider split-case or vertical turbine. Verify electrical service capacity.'});
+      } else {
+        decisions.push({level:'critical', title:'Very large pump: ' + val.toFixed(0) + ' HP', detail:'Requires VFD, dedicated transformer, and engineering review. Consider parallel pump arrangement.'});
+      }
+    }
+    // Pressure rules
+    else if (/pressure|residual|psi/.test(name) && !/shutoff/.test(name)) {
+      if (val < 20 && val > 0) {
+        decisions.push({level:'critical', title:'Pressure critically low: ' + val.toFixed(1) + ' PSI', detail:'Below 20 PSI minimum per NFPA 20. System will not function. Increase pump head or reduce pipe losses.'});
+      } else if (val < 50) {
+        decisions.push({level:'warning', title:'Low pressure zone: ' + val.toFixed(1) + ' PSI', detail:'Consider booster pump or larger pipe diameter to reduce friction losses.'});
+      } else if (val > 0) {
+        decisions.push({level:'valid', title:'Pressure adequate: ' + val.toFixed(1) + ' PSI', detail:'Within acceptable operating range.'});
+      }
+    }
+    // Flow rules
+    else if (/flow|demand|gpm/.test(name) && !/150/.test(name)) {
+      if (val > 2500) {
+        decisions.push({level:'warning', title:'High flow demand: ' + val.toFixed(0) + ' GPM', detail:'Consider loop piping network or multiple supply points to distribute demand.'});
+      } else if (val > 0) {
+        decisions.push({level:'valid', title:'Flow rate: ' + val.toFixed(0) + ' GPM', detail:'Within normal operating range.'});
+      }
+    }
+    // Voltage drop rules
+    else if (/voltage_drop|dv|v_drop/.test(name)) {
+      if (val > 5) {
+        decisions.push({level:'critical', title:'Voltage drop excessive: ' + val.toFixed(2) + 'V', detail:'Exceeds NEC 3% recommendation. Increase conductor size or reduce circuit length.'});
+      } else if (val > 3) {
+        decisions.push({level:'warning', title:'Voltage drop high: ' + val.toFixed(2) + 'V', detail:'Near NEC limit. Consider upsizing conductor by one gauge.'});
+      }
+    }
+    // Cost rules
+    else if (/cost|costo|price/.test(name)) {
+      if (val > 50000) {
+        decisions.push({level:'warning', title:'High project cost: $' + val.toLocaleString(), detail:'Consider value engineering alternatives. Budget with 20% contingency: $' + (val * 1.2).toLocaleString(undefined,{maximumFractionDigits:0})});
+      }
+    }
+    // Safety factor / FoS
+    else if (/fos|safety_factor|factor_seguridad/.test(name)) {
+      if (val < 1.0) {
+        decisions.push({level:'critical', title:'Unstable (FoS = ' + val.toFixed(3) + ')', detail:'Factor of Safety below 1.0 — failure expected. Redesign required immediately.'});
+      } else if (val < 1.5) {
+        decisions.push({level:'warning', title:'Marginal stability (FoS = ' + val.toFixed(3) + ')', detail:'Below 1.5 minimum for permanent structures. Consider reinforcement.'});
+      } else {
+        decisions.push({level:'valid', title:'Stable (FoS = ' + val.toFixed(3) + ')', detail:'Adequate safety factor for permanent structures.'});
+      }
+    }
+    // Entropy rules
+    else if (/entropy/.test(name)) {
+      if (val === 0 || isNaN(val)) {
+        decisions.push({level:'critical', title:'No entropy computed', detail:'Password parameters are missing. Set charset size and length to evaluate security.'});
+      } else if (val < 60) {
+        decisions.push({level:'critical', title:'Weak entropy: ' + val.toFixed(1) + ' bits', detail:'Below 60-bit minimum. Password can be cracked in hours. Increase length to 16+ chars with mixed types.'});
+      } else if (val < 80) {
+        decisions.push({level:'warning', title:'Moderate entropy: ' + val.toFixed(1) + ' bits', detail:'Acceptable for general use but below 80-bit recommendation for sensitive systems.'});
+      } else {
+        decisions.push({level:'valid', title:'Strong entropy: ' + val.toFixed(1) + ' bits', detail:'Meets security best practices. Password is resistant to brute-force attacks.'});
+      }
+    }
+    // Crack time rules
+    else if (/crack_years|crack_time/.test(name)) {
+      if (val === 0 || isNaN(val)) {
+        decisions.push({level:'critical', title:'Instantly crackable', detail:'Password has zero resistance. Configure parameters to evaluate.'});
+      } else if (val < 1) {
+        decisions.push({level:'critical', title:'Crackable in ' + (val * 365.25).toFixed(0) + ' days', detail:'Password will not survive a sustained attack. Increase complexity immediately.'});
+      } else if (val < 100) {
+        decisions.push({level:'warning', title:'Crack time: ' + val.toFixed(1) + ' years', detail:'Limited protection. Consider longer passwords for critical systems.'});
+      } else {
+        decisions.push({level:'valid', title:'Crack time: ' + val.toExponential(1) + ' years', detail:'Computationally infeasible to brute-force.'});
+      }
+    }
+  });
+
+  // If no specific rules matched, add a generic valid
+  if (decisions.length === 0) {
+    decisions.push({level:'valid', title:'Computation complete', detail:'All values computed successfully. Review results for domain-specific validation.'});
+  }
+
+  return decisions;
+}
+
+/* ═══ AUTO-OPTIMIZE (background) ═══ */
+async function runAutoOptimize(planName, params, baseSteps) {
+  try {
+    // Build minimal sweep: ±30%, 5 steps per param (fast, max ~3000 scenarios)
+    const sweep = {};
+    let outputStep = null;
+    Object.keys(params).forEach(k => {
+      const v = params[k] || 100;
+      const lo = v * 0.7, hi = v * 1.3, st = (hi - lo) / 5;
+      if (st > 0) sweep[k] = {min: lo, max: hi, step: st};
+      else sweep[k] = v;
+    });
+    if (baseSteps.length > 0) outputStep = baseSteps[0].step;
+
+    const d = await api('POST', '/plan/simulate', {plan: planName, sweep, output_step: outputStep});
+    const results = d.results || [];
+    const scenarios = d.scenarios || 0;
+    const totalNs = d.total_ns || 0;
+    if (scenarios === 0 || results.length === 0) return null;
+
+    // Update KPI
+    if (totalNs > 0) {
+      lastScenariosPerSec = Math.round(scenarios / (totalNs / 1e9));
+      updateKpiThroughput(lastScenariosPerSec);
+    }
+
+    // Find best (min for HP/cost/loss, max for FoS/efficiency)
+    const valKey = outputStep || Object.keys(results[0]).find(k => k !== 'params') || 'result';
+    const shouldMinimize = /hp|cost|loss|drop|costo/.test((valKey || '').toLowerCase());
+    let best = results[0], bestVal = results[0][valKey];
+    results.forEach(r => {
+      const v = r[valKey];
+      if (shouldMinimize ? v < bestVal : v > bestVal) { bestVal = v; best = r; }
+    });
+
+    // Get baseline value
+    const baseMatch = baseSteps.find(s => s.step === valKey);
+    const baseVal = baseMatch ? baseMatch.result : null;
+
+    // Build compact panel
+    const panel = document.createElement('div');
+    panel.className = 'result-card';
+    panel.style.cssText = 'border-color:var(--magenta)44;background:linear-gradient(135deg,var(--panel),var(--magenta)03);animation:slide-in .4s ease-out';
+
+    let html = '<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">';
+    html += '<div style="font-size:1.5rem">\u{1F4A1}</div>';
+    html += '<div>';
+    html += '<div style="font-size:.9rem;font-weight:800;background:linear-gradient(90deg,var(--magenta),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent">BEST CONFIGURATION FOUND</div>';
+    html += '<div style="font-size:.6rem;color:var(--text3)">' + scenarios.toLocaleString() + ' scenarios explored in ' + formatNsDisplay(totalNs) + '</div>';
+    html += '</div></div>';
+
+    // Best params vs current
+    const bestParams = best.params || {};
+    let hasImprovement = false;
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:.25rem .5rem;font-size:.7rem;margin-bottom:.5rem">';
+    html += '<div style="color:var(--text3);font-size:.55rem;text-transform:uppercase">Param</div><div style="color:var(--text3);font-size:.55rem;text-transform:uppercase">Current</div><div style="color:var(--text3);font-size:.55rem;text-transform:uppercase">Optimal</div><div style="color:var(--text3);font-size:.55rem;text-transform:uppercase">Delta</div>';
+    Object.keys(params).forEach(k => {
+      const curr = params[k], opt = bestParams[k];
+      if (opt === undefined || Math.abs(curr - opt) < 0.001) return;
+      hasImprovement = true;
+      const pct = curr !== 0 ? ((opt - curr) / curr * 100) : 0;
+      const color = pct > 0 ? 'var(--green)' : 'var(--red)';
+      html += '<div style="color:var(--cyan)">' + k + '</div><div style="color:var(--text2)">' + formatNum(curr) + '</div><div style="color:var(--green);font-weight:600">' + formatNum(opt) + '</div><div style="color:' + color + ';font-weight:600">' + (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%</div>';
+    });
+    // Output row
+    if (baseVal !== null) {
+      const outPct = baseVal !== 0 ? ((bestVal - baseVal) / baseVal * 100) : 0;
+      const outColor = (shouldMinimize ? outPct < 0 : outPct > 0) ? 'var(--green)' : 'var(--red)';
+      html += '<div style="color:var(--magenta);font-weight:700;border-top:1px solid var(--border);padding-top:.25rem">' + valKey + '</div>';
+      html += '<div style="border-top:1px solid var(--border);padding-top:.25rem;color:var(--text2)">' + formatNum(baseVal) + '</div>';
+      html += '<div style="border-top:1px solid var(--border);padding-top:.25rem;color:var(--green);font-weight:700">' + formatNum(bestVal) + '</div>';
+      html += '<div style="border-top:1px solid var(--border);padding-top:.25rem;color:' + outColor + ';font-weight:700">' + (outPct >= 0 ? '+' : '') + outPct.toFixed(1) + '%</div>';
+    }
+    html += '</div>';
+
+    if (!hasImprovement && baseVal !== null && Math.abs(bestVal - baseVal) < 0.01) {
+      html += '<div style="font-size:.7rem;color:var(--green);text-align:center;padding:.5rem">\u2714 Current configuration is already optimal</div>';
+    }
+
+    panel.innerHTML = html;
+    return panel;
+  } catch {
+    return null;
+  }
+}
+
+function buildSmartCard(step, index, total) {
+  const card = document.createElement('div');
+  card.className = 'smart-card';
+
+  const name = (step.step || '').toLowerCase();
+  const val = step.result;
+  const numVal = typeof val === 'number' ? val : parseFloat(val);
+
+  let icon = '&#128200;'; // default chart icon
+  let title = step.step.replace(/_/g, ' ').toUpperCase();
+  let displayVal = formatNum(val);
+  let unit = '';
+  let sub = '';
+  let statusClass = 'status-ok';
+  let statusText = '\u2714 Within range';
+
+  // Smart interpretation rules
+  if (/hp|pump|horse|potencia|motor/.test(name)) {
+    icon = '&#128293;'; // fire
+    title = 'Recommended Pump';
+    displayVal = Math.round(numVal);
+    unit = ' HP';
+    const safetyVal = Math.ceil(numVal * 1.2);
+    sub = '\u26A0 Consider 20% safety margin \u2192 ' + safetyVal + ' HP';
+    if (numVal > 100) { statusClass = 'status-warn'; statusText = '\u26A0 High power requirement'; }
+    else if (numVal > 500) { statusClass = 'status-bad'; statusText = '\u274C Exceeds typical range'; }
+  } else if (/pressure|residual|psi|presion/.test(name)) {
+    icon = '&#128167;'; // droplet
+    title = 'System Pressure';
+    unit = ' PSI';
+    if (numVal < 20) { statusClass = 'status-bad'; statusText = '\u274C Below minimum (20 PSI)'; }
+    else if (numVal < 50) { statusClass = 'status-warn'; statusText = '\u26A0 Low pressure zone'; }
+    const safetyVal = (numVal * 1.2).toFixed(1);
+    sub = '\u26A0 Safety margin (20%): ' + safetyVal + ' PSI';
+  } else if (/flow|demand|gpm|caudal|flujo/.test(name)) {
+    icon = '&#127754;'; // wave
+    title = 'Flow Rate';
+    unit = ' GPM';
+    if (numVal > 2000) { statusClass = 'status-warn'; statusText = '\u26A0 High flow demand'; }
+    const safetyVal = (numVal * 1.2).toFixed(1);
+    sub = '\u26A0 Safety margin (20%): ' + safetyVal + ' GPM';
+  } else if (/cost|costo|precio|price|usd|\$/.test(name)) {
+    icon = '&#128176;'; // money
+    title = 'Estimated Cost';
+    displayVal = '$' + numVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    unit = '';
+    if (numVal > 10000) { statusClass = 'status-warn'; statusText = '\u26A0 Consider alternatives'; }
+    sub = 'Budget with 20% contingency: $' + (numVal * 1.2).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  } else if (/area|superficie/.test(name)) {
+    icon = '&#128207;'; // ruler
+    title = 'Area';
+    unit = ' ft\u00B2';
+    const safetyVal = (numVal * 1.2).toFixed(1);
+    sub = '\u26A0 Safety margin (20%): ' + safetyVal + ' ft\u00B2';
+  } else if (/velocity|velocidad|speed|fps/.test(name)) {
+    icon = '&#127788;'; // wind
+    title = 'Flow Velocity';
+    unit = ' fps';
+    if (numVal > 20) { statusClass = 'status-warn'; statusText = '\u26A0 High velocity - check pipe erosion'; }
+  } else if (/diameter|diametro|pipe|tuberia/.test(name)) {
+    icon = '&#9898;'; // circle
+    title = 'Pipe Diameter';
+    unit = ' in';
+  } else if (/volume|volumen|gallon|tank|tanque/.test(name)) {
+    icon = '&#129704;'; // bucket
+    title = 'Volume';
+    unit = ' gal';
+    const safetyVal = (numVal * 1.2).toFixed(0);
+    sub = '\u26A0 Safety margin (20%): ' + safetyVal + ' gal';
+  } else if (/entropy/.test(name)) {
+    icon = '&#128272;'; // key
+    title = 'Password Entropy';
+    unit = ' bits';
+    displayVal = numVal.toFixed(1);
+    if (numVal >= 128) { statusClass = 'status-ok'; statusText = '\u2714 Very strong — resistant to all known attacks'; sub = 'Exceeds 128-bit threshold. Brute-force infeasible.'; }
+    else if (numVal >= 80) { statusClass = 'status-ok'; statusText = '\u2714 Strong — exceeds 80-bit minimum'; sub = 'Good for most applications. Consider 128+ for critical systems.'; }
+    else if (numVal >= 60) { statusClass = 'status-warn'; statusText = '\u26A0 Moderate — increase length or charset'; sub = 'Vulnerable to dedicated attackers. Add symbols or increase length.'; }
+    else if (numVal > 0) { statusClass = 'status-bad'; statusText = '\u274C Weak — easily crackable'; sub = 'Below 60 bits. Use longer password with mixed character types.'; }
+    else { statusClass = 'status-bad'; statusText = '\u274C No entropy — no password configured'; sub = 'Set charset size and length to compute entropy.'; }
+  } else if (/crack_years|crack_time|time_to_crack/.test(name)) {
+    icon = '&#9201;'; // stopwatch
+    title = 'Time to Crack';
+    if (numVal === 0) { displayVal = 'Instant'; unit = ''; statusClass = 'status-bad'; statusText = '\u274C Crackable immediately'; sub = 'No password configured or trivially weak.'; }
+    else if (numVal < 0.001) { displayVal = (numVal * 365.25 * 24 * 60).toFixed(1); unit = ' minutes'; statusClass = 'status-bad'; statusText = '\u274C Crackable in minutes'; sub = 'Increase password length or complexity immediately.'; }
+    else if (numVal < 1) { displayVal = (numVal * 365.25).toFixed(0); unit = ' days'; statusClass = 'status-bad'; statusText = '\u274C Crackable within a year'; sub = 'Not suitable for any security application.'; }
+    else if (numVal < 100) { displayVal = numVal.toFixed(1); unit = ' years'; statusClass = 'status-warn'; statusText = '\u26A0 Limited lifetime'; sub = 'Acceptable for short-term use. Consider stronger passwords for long-term.'; }
+    else if (numVal < 1e6) { displayVal = numVal.toExponential(1); unit = ' years'; statusClass = 'status-ok'; statusText = '\u2714 Computationally infeasible'; sub = 'Beyond practical brute-force capability.'; }
+    else { displayVal = numVal.toExponential(1); unit = ' years'; statusClass = 'status-ok'; statusText = '\u2714 Astronomically secure'; sub = 'Exceeds age of universe. Effectively unbreakable.'; }
+  } else if (/strength_ratio|strength/.test(name)) {
+    icon = '&#128170;'; // flexed biceps
+    title = 'Password Strength';
+    displayVal = (numVal * 100).toFixed(1);
+    unit = '%';
+    if (numVal >= 0.8) { statusClass = 'status-ok'; statusText = '\u2714 Excellent strength'; sub = 'Meets or exceeds security best practices.'; }
+    else if (numVal >= 0.5) { statusClass = 'status-warn'; statusText = '\u26A0 Moderate strength'; sub = 'Consider increasing password complexity.'; }
+    else if (numVal > 0) { statusClass = 'status-bad'; statusText = '\u274C Weak password'; sub = 'Password does not meet minimum security requirements.'; }
+    else { statusClass = 'status-bad'; statusText = '\u274C Not evaluated'; sub = 'Configure parameters to evaluate password strength.'; }
+  } else if (/effective_rate|hashrate/.test(name)) {
+    icon = '&#9889;'; // lightning
+    title = 'GPU Hashrate';
+    displayVal = numVal > 1e6 ? (numVal / 1e6).toFixed(1) + 'M' : numVal > 1e3 ? (numVal / 1e3).toFixed(0) + 'K' : numVal.toFixed(0);
+    unit = ' h/s';
+    if (numVal > 1e6) { statusClass = 'status-bad'; statusText = '\u274C High attack speed'; sub = 'Attacker can test millions of passwords per second. Use higher cost factor.'; }
+    else if (numVal > 100000) { statusClass = 'status-warn'; statusText = '\u26A0 Moderate attack speed'; sub = 'Consider increasing bcrypt cost factor.'; }
+    else { statusClass = 'status-ok'; statusText = '\u2714 Slow attack rate'; sub = 'Cost factor provides good protection.'; }
+  } else if (/dict_seconds|dict_hours/.test(name)) {
+    icon = '&#128214;'; // book
+    title = 'Dictionary Attack';
+    if (/hours/.test(name)) {
+      if (numVal < 0.017) { displayVal = (numVal * 3600).toFixed(1); unit = ' seconds'; }
+      else if (numVal < 1) { displayVal = (numVal * 60).toFixed(1); unit = ' minutes'; }
+      else { displayVal = numVal.toFixed(1); unit = ' hours'; }
+    } else {
+      if (numVal < 60) { displayVal = numVal.toFixed(1); unit = ' seconds'; }
+      else if (numVal < 3600) { displayVal = (numVal / 60).toFixed(1); unit = ' minutes'; }
+      else { displayVal = (numVal / 3600).toFixed(1); unit = ' hours'; }
+    }
+    if (numVal < 10 || (unit.includes('second') && numVal < 60)) { statusClass = 'status-bad'; statusText = '\u274C Falls to dictionary attack'; sub = 'Common passwords cracked in seconds. Use unique, random passwords.'; }
+    else if (numVal < 3600 || unit.includes('minute')) { statusClass = 'status-warn'; statusText = '\u26A0 Vulnerable to extended dictionary'; sub = 'Rule-based mutations can crack this. Use longer passwords.'; }
+    else { statusClass = 'status-ok'; statusText = '\u2714 Resists dictionary attacks'; sub = 'Dictionary attack would take too long to be practical.'; }
+  } else if (/brute_seconds/.test(name)) {
+    icon = '&#128296;'; // hammer
+    title = 'Brute Force Time';
+    if (numVal < 60) { displayVal = numVal.toFixed(1); unit = ' seconds'; statusClass = 'status-bad'; statusText = '\u274C Instant brute-force'; sub = 'Password space is trivially small.'; }
+    else if (numVal < 3600) { displayVal = (numVal / 60).toFixed(1); unit = ' minutes'; statusClass = 'status-bad'; statusText = '\u274C Crackable in minutes'; sub = 'Increase password length immediately.'; }
+    else if (numVal < 86400) { displayVal = (numVal / 3600).toFixed(1); unit = ' hours'; statusClass = 'status-bad'; statusText = '\u274C Crackable in hours'; sub = 'Not suitable for any security application.'; }
+    else if (numVal < 31536000) { displayVal = (numVal / 86400).toFixed(0); unit = ' days'; statusClass = 'status-warn'; statusText = '\u26A0 Crackable in days/months'; sub = 'Dedicated attacker will succeed.'; }
+    else { displayVal = (numVal / 31536000).toFixed(1); unit = ' years'; statusClass = 'status-ok'; statusText = '\u2714 Brute-force resistant'; sub = 'Would take years to exhaust keyspace.'; }
+  } else if (/brute_years/.test(name)) {
+    icon = '&#128296;'; // hammer
+    title = 'Brute Force Time';
+    if (numVal < 0.003) { displayVal = (numVal * 365.25 * 24).toFixed(1); unit = ' hours'; statusClass = 'status-bad'; statusText = '\u274C Crackable in hours'; }
+    else if (numVal < 1) { displayVal = (numVal * 365.25).toFixed(0); unit = ' days'; statusClass = 'status-bad'; statusText = '\u274C Crackable within a year'; sub = 'Not suitable for security.'; }
+    else if (numVal < 100) { displayVal = numVal.toFixed(1); unit = ' years'; statusClass = 'status-warn'; statusText = '\u26A0 Limited protection'; sub = 'GPU clusters or future hardware could crack this.'; }
+    else if (numVal < 1e6) { displayVal = numVal.toLocaleString(undefined, {maximumFractionDigits: 0}); unit = ' years'; statusClass = 'status-ok'; statusText = '\u2714 Computationally infeasible'; sub = 'Beyond practical brute-force capability.'; }
+    else { displayVal = numVal.toExponential(1); unit = ' years'; statusClass = 'status-ok'; statusText = '\u2714 Astronomically secure'; sub = 'Effectively unbreakable by brute force.'; }
+  } else if (/combinations|keyspace|search_space/.test(name)) {
+    icon = '&#128290;'; // number sign
+    title = 'Keyspace Size';
+    displayVal = numVal > 1e15 ? numVal.toExponential(2) : numVal.toLocaleString();
+    unit = ' combinations';
+    if (numVal >= 1e20) { statusClass = 'status-ok'; statusText = '\u2714 Vast keyspace'; sub = 'Brute-force search effectively impossible.'; }
+    else if (numVal >= 1e12) { statusClass = 'status-warn'; statusText = '\u26A0 Moderate keyspace'; sub = 'Vulnerable to GPU-accelerated attacks.'; }
+    else if (numVal > 0) { statusClass = 'status-bad'; statusText = '\u274C Small keyspace'; sub = 'Can be exhausted quickly. Increase length/charset.'; }
+    else { statusClass = 'status-bad'; statusText = '\u274C Empty keyspace'; sub = 'No parameters configured.'; }
+  } else {
+    // Generic — still provide safety margin if numeric
+    if (!isNaN(numVal) && numVal !== 0) {
+      const safetyVal = (numVal * 1.2).toFixed(2);
+      sub = '\u26A0 +20% safety: ' + safetyVal;
+    } else {
+      sub = '';
+    }
+  }
+
+  card.innerHTML =
+    '<div class="smart-icon">' + icon + '</div>' +
+    '<div class="smart-body">' +
+      '<div class="smart-title">' + title + '</div>' +
+      '<div class="smart-value">' + displayVal + unit + '</div>' +
+      (sub ? '<div class="smart-sub">' + sub + '</div>' : '') +
+      '<span class="smart-status ' + statusClass + '">' + statusText + '</span>' +
+    '</div>';
+
+  return card;
+}
+
+function buildLatencyBadge(ns) {
+  let display, unit, cls;
+  if (ns >= 1e9) { display = (ns / 1e9).toFixed(2); unit = 's'; cls = 'slow'; }
+  else if (ns >= 1e6) { display = (ns / 1e6).toFixed(2); unit = 'ms'; cls = 'slow'; }
+  else if (ns >= 1e3) { display = (ns / 1e3).toFixed(1); unit = '\u00B5s'; cls = ns > 50000 ? 'mid' : 'fast'; }
+  else { display = ns; unit = 'ns'; cls = 'fast'; }
+  return '<div class="latency-badge ' + cls + '">' +
+    '<span class="lat-label">Computed in</span>' +
+    '<span class="lat-val">' + display + '</span>' +
+    '<span class="lat-label">' + unit + '</span>' +
+  '</div>';
+}
+
+function buildJitBadge(ns) {
+  let level = 'Level 3';
+  if (ns < 500) level = 'Level 1 (native)';
+  else if (ns < 5000) level = 'Level 2 (JIT)';
+  else if (ns < 50000) level = 'Level 3 (optimized)';
+  else level = 'Level 4 (interpreted)';
+  return '<div class="latency-badge fast" style="border-color:var(--magenta)33">' +
+    '<span class="lat-label" style="color:var(--magenta)">JIT</span>' +
+    '<span class="lat-val" style="color:var(--magenta);font-size:.75rem">' + level + '</span>' +
+  '</div>';
+}
+
+function buildStepsCollapsible(steps) {
+  const wrap = document.createElement('div');
+  wrap.className = 'steps-collapsible';
+  const toggle = document.createElement('div');
+  toggle.className = 'steps-toggle';
+  toggle.innerHTML = '<span>\u25B6</span> Step details (' + steps.length + ' steps)';
+  const detail = document.createElement('div');
+  detail.className = 'steps-detail';
+  let html = '<table class="steps-table"><thead><tr><th>#</th><th>Step</th><th>Oracle</th><th style="text-align:right">Value</th></tr></thead><tbody>';
+  steps.forEach((s, i) => {
+    html += '<tr><td style="color:var(--text3)">' + (i+1) + '</td>' +
+      '<td class="step-name">' + s.step + '</td>' +
+      '<td class="oracle-name">' + (s.oracle || '-') + '</td>' +
+      '<td class="step-value">' + formatNum(s.result) + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  detail.innerHTML = html;
+  toggle.addEventListener('click', () => {
+    detail.classList.toggle('open');
+    toggle.querySelector('span').textContent = detail.classList.contains('open') ? '\u25BC' : '\u25B6';
+  });
+  wrap.appendChild(toggle);
+  wrap.appendChild(detail);
+  return wrap;
+}
+
+function buildJsonToggle(data) {
+  const wrap = document.createElement('div');
+  const toggle = document.createElement('div');
+  toggle.className = 'json-toggle';
+  toggle.innerHTML = '<span>\u25B6</span> Raw JSON';
+  const raw = document.createElement('pre');
+  raw.className = 'json-raw';
+  raw.textContent = JSON.stringify(data, null, 2);
+  toggle.addEventListener('click', () => {
+    raw.classList.toggle('open');
+    toggle.querySelector('span').textContent = raw.classList.contains('open') ? '\u25BC' : '\u25B6';
+  });
+  wrap.appendChild(toggle);
+  wrap.appendChild(raw);
+  return wrap;
+}
+
+/* ═══ OPTIMIZE RESULT ═══ */
+function showOptimizeResult(simData, originalParams, baselineResult) {
+  const area = $('#resultArea');
+  area.style.display = 'block';
+  $('#resultEmpty').style.display = 'none';
+  area.innerHTML = '';
+
+  const scenarios = simData.scenarios || 0;
+  const totalNs = simData.total_ns || 0;
+  const avgNs = simData.avg_ns_per_scenario || 0;
+  const results = simData.results || [];
+
+  // Find best result (max output value)
+  let bestResult = null;
+  let bestVal = -Infinity;
+  const valKey = simData.output_step || (results.length > 0 ? Object.keys(results[0]).find(k => k !== 'params') : 'result');
+  results.forEach(r => {
+    const v = r[valKey];
+    if (typeof v === 'number' && v > bestVal) { bestVal = v; bestResult = r; }
+  });
+
+  // Get baseline value
+  const baseSteps = ((baselineResult && baselineResult.result) || baselineResult || {}).steps || [];
+  let baseVal = null;
+  if (baseSteps.length > 0 && valKey) {
+    const match = baseSteps.find(s => s.step === valKey);
+    if (match) baseVal = match.result;
+    else baseVal = baseSteps[baseSteps.length - 1].result;
+  }
+
+  const panel = document.createElement('div');
+  panel.className = 'optimize-panel';
+
+  let html = '<div class="opt-header">&#128640; OPTIMIZATION COMPLETE</div>';
+
+  // Scenarios counter
+  html += '<div style="display:flex;gap:2rem;justify-content:center;margin-bottom:1rem">';
+  html += '<div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:var(--magenta)">' + scenarios.toLocaleString() + '</div><div style="font-size:.6rem;color:var(--text3);text-transform:uppercase">Scenarios explored</div></div>';
+  html += '<div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:var(--cyan)">' + formatNsDisplay(totalNs) + '</div><div style="font-size:.6rem;color:var(--text3);text-transform:uppercase">Total time</div></div>';
+  html += '<div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:var(--green)">' + formatNsDisplay(avgNs) + '</div><div style="font-size:.6rem;color:var(--text3);text-transform:uppercase">Avg / scenario</div></div>';
+  html += '</div>';
+
+  // Best configuration
+  if (bestResult) {
+    html += '<div class="opt-best">';
+    html += '<div class="opt-best-title">&#128161; BEST CONFIGURATION FOUND</div>';
+
+    // Comparison table
+    html += '<table class="opt-compare"><thead><tr><th>Parameter</th><th>Current</th><th>Optimal</th><th>Delta</th></tr></thead><tbody>';
+    const bestParams = bestResult.params || {};
+    Object.keys(originalParams).forEach(k => {
+      const curr = originalParams[k];
+      const opt = bestParams[k];
+      if (opt === undefined) return;
+      const delta = curr !== 0 ? ((opt - curr) / curr * 100) : 0;
+      const deltaClass = delta > 0 ? 'positive' : delta < 0 ? 'negative' : '';
+      const deltaStr = delta > 0 ? '+' + delta.toFixed(1) + '%' : delta.toFixed(1) + '%';
+      html += '<tr><td style="color:var(--cyan)">' + k + '</td>';
+      html += '<td class="curr">' + formatNum(curr) + '</td>';
+      html += '<td class="best">' + formatNum(opt) + '</td>';
+      html += '<td class="delta ' + deltaClass + '">' + deltaStr + '</td></tr>';
+    });
+
+    // Output row
+    if (baseVal !== null && bestVal !== -Infinity) {
+      const outputDelta = baseVal !== 0 ? ((bestVal - baseVal) / baseVal * 100) : 0;
+      const outputDeltaClass = outputDelta > 0 ? 'positive' : outputDelta < 0 ? 'negative' : '';
+      html += '<tr style="border-top:2px solid var(--border)"><td style="color:var(--magenta);font-weight:700">' + (valKey || 'output') + '</td>';
+      html += '<td class="curr">' + formatNum(baseVal) + '</td>';
+      html += '<td class="best">' + formatNum(bestVal) + '</td>';
+      html += '<td class="delta ' + outputDeltaClass + '">' + (outputDelta > 0 ? '+' : '') + outputDelta.toFixed(1) + '%</td></tr>';
+    }
+
+    html += '</tbody></table></div>';
+  }
+
+  panel.innerHTML = html;
+  area.appendChild(panel);
+
+  // Top 5 results table
+  if (results.length > 0) {
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    let thtml = '<div style="font-size:.7rem;color:var(--text3);text-transform:uppercase;margin-bottom:.5rem;letter-spacing:.08em">Top results (of ' + results.length + ')</div>';
+    const keys = Object.keys(results[0].params || {});
+    thtml += '<table class="steps-table"><thead><tr>';
+    keys.forEach(k => { thtml += '<th>' + k + '</th>'; });
+    thtml += '<th style="text-align:right;color:var(--green)">' + (valKey || 'output') + '</th></tr></thead><tbody>';
+
+    // Sort by output desc
+    const sorted = [...results].sort((a, b) => (b[valKey] || 0) - (a[valKey] || 0));
+    sorted.slice(0, 10).forEach((r, i) => {
+      const isBest = r === bestResult;
+      thtml += '<tr' + (isBest ? ' style="background:var(--green)08"' : '') + '>';
+      keys.forEach(k => { thtml += '<td>' + formatNum(r.params[k]) + '</td>'; });
+      thtml += '<td class="step-value">' + formatNum(r[valKey]) + (isBest ? ' &#11088;' : '') + '</td></tr>';
+    });
+    if (results.length > 10) {
+      thtml += '<tr><td colspan="' + (keys.length + 1) + '" style="text-align:center;color:var(--text3);font-size:.6rem">... ' + (results.length - 10) + ' more results</td></tr>';
+    }
+    thtml += '</tbody></table>';
+    card.innerHTML = thtml;
+    area.appendChild(card);
+  }
+
+  area.appendChild(buildJsonToggle(simData));
+}
+
+/* ═══ LIVE MODE PANEL ═══ */
+function showLivePanel(params, initialData) {
+  const area = $('#resultArea');
+  area.style.display = 'block';
+  $('#resultEmpty').style.display = 'none';
+
+  // Remove existing live panel if any
+  let existing = document.getElementById('livePanelContainer');
+  if (existing) existing.remove();
+
+  const container = document.createElement('div');
+  container.id = 'livePanelContainer';
+
+  const panel = document.createElement('div');
+  panel.className = 'live-panel';
+  panel.innerHTML =
+    '<div class="live-header">' +
+      '<span>&#128260; LIVE MODE ACTIVE</span>' +
+      '<div class="live-indicator"><div class="live-dot"></div><span>Session ' + (reactiveSessionId || '').substring(0, 8) + '</span></div>' +
+    '</div>' +
+    '<div id="liveLatency" style="font-size:.7rem;color:var(--text3);margin-bottom:.75rem">Adjust sliders to see real-time changes</div>' +
+    '<div id="liveSliders"></div>';
+  container.appendChild(panel);
+
+  // Build sliders
+  const sliderContainer = document.createElement('div');
+  sliderContainer.id = 'liveSliderGroup';
+  Object.keys(params).forEach(k => {
+    const val = params[k] || 100;
+    const min = val * 0.1 || 0;
+    const max = val * 3 || 1000;
+    const step = (max - min) / 200;
+    const group = document.createElement('div');
+    group.className = 'slider-group';
+    group.innerHTML =
+      '<div class="slider-row">' +
+        '<label>' + k + '</label>' +
+        '<input type="range" min="' + min + '" max="' + max + '" step="' + step + '" value="' + val + '" data-lparam="' + k + '" data-base="' + val + '">' +
+        '<span class="slider-val" data-lval="' + k + '">' + formatNum(val) + '</span>' +
+        '<span class="slider-delta same" data-ldelta="' + k + '">0%</span>' +
+      '</div>';
+    sliderContainer.appendChild(group);
+
+    group.querySelector('input[type="range"]').addEventListener('input', function() {
+      const newVal = parseFloat(this.value);
+      const base = parseFloat(this.dataset.base);
+      group.querySelector('.slider-val').textContent = formatNum(newVal);
+      const pct = base !== 0 ? ((newVal - base) / base * 100) : 0;
+      const deltaEl = group.querySelector('.slider-delta');
+      deltaEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(0) + '%';
+      deltaEl.className = 'slider-delta ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : 'same');
+      if (reactiveSessionId) throttledReactiveUpdate(k, newVal);
+    });
+  });
+
+  panel.querySelector('#liveSliders').appendChild(sliderContainer);
+
+  // Live results area
+  const liveResults = document.createElement('div');
+  liveResults.id = 'liveResults';
+  container.appendChild(liveResults);
+
+  // Show initial results if available
+  if (initialData && initialData.result && initialData.result.steps) {
+    showLiveSteps(initialData.result.steps, [], liveResults);
+  }
+
+  // Insert at top of result area
+  area.insertBefore(container, area.firstChild);
+}
+
+let liveThrottle = null;
+function throttledReactiveUpdate(param, value) {
+  if (liveThrottle) clearTimeout(liveThrottle);
+  liveThrottle = setTimeout(async () => {
+    if (!reactiveSessionId) return;
+    try {
+      const d = await api('POST', '/plan/reactive/update', {
+        session_id: reactiveSessionId,
+        changes: {[param]: value}
+      });
+      const serverNs = d.latency_ns || d.total_ns || 0;
+      lastComputeNs = serverNs;
+      updateKpiLatency(serverNs);
+
+      const latEl = document.getElementById('liveLatency');
+      if (latEl) {
+        latEl.innerHTML = '&#9889; Updated in <strong style="color:var(--green)">' + formatNsDisplay(serverNs) + '</strong>';
+      }
+
+      const dirty = d.recomputed || [];
+      const steps = (d.result && d.result.steps) || d.steps || [];
+      const liveResults = document.getElementById('liveResults');
+      if (liveResults && steps.length) {
+        showLiveSteps(steps, dirty, liveResults);
+      }
+    } catch {}
+  }, 50);
+}
+
+function showLiveSteps(steps, dirty, container) {
+  let html = '';
+  steps.forEach((s, i) => {
+    const isDirty = dirty.includes(s.step);
+    const base = reactiveBaseParams;
+    // Build smart card for each step with delta info
+    const card = buildSmartCard(s, i, steps.length);
+    if (isDirty) {
+      card.style.borderColor = 'var(--yellow)';
+      card.style.background = 'linear-gradient(135deg,var(--yellow)05,var(--bg))';
+    }
+    html += card.outerHTML;
+  });
+  container.innerHTML = html;
+}
+
+/* ═══ WHAT-IF RESULT ═══ */
+function showWhatIfResult(newData, oldData, query) {
+  const area = $('#resultArea');
+  area.style.display = 'block';
+  $('#resultEmpty').style.display = 'none';
+  area.innerHTML = '';
+
+  // What-if banner
+  const banner = document.createElement('div');
+  banner.className = 'whatif-banner';
+  banner.innerHTML = '<div class="whatif-icon">&#128260;</div><div><strong style="color:var(--cyan)">What-if analysis:</strong> ' + escapeHtml(query) + '</div>';
+  area.appendChild(banner);
+
+  const oldResult = oldData.result || oldData;
+  const newResult = newData.result || newData;
+  const oldSteps = oldResult.steps || [];
+  const newSteps = newResult.steps || [];
+
+  // Comparison cards
+  newSteps.forEach((ns, i) => {
+    const os = oldSteps.find(s => s.step === ns.step);
+    const card = document.createElement('div');
+    card.className = 'smart-card';
+
+    const name = (ns.step || '').toLowerCase();
+    let icon = '&#128200;';
+    if (/hp|pump/.test(name)) icon = '&#128293;';
+    else if (/pressure|psi/.test(name)) icon = '&#128167;';
+    else if (/flow|gpm/.test(name)) icon = '&#127754;';
+    else if (/cost/.test(name)) icon = '&#128176;';
+
+    const newVal = ns.result;
+    const oldVal = os ? os.result : null;
+    let deltaHtml = '';
+    if (oldVal !== null && typeof newVal === 'number' && typeof oldVal === 'number') {
+      const pct = oldVal !== 0 ? ((newVal - oldVal) / oldVal * 100) : 0;
+      const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : 'same';
+      const color = pct > 0 ? 'var(--green)' : pct < 0 ? 'var(--red)' : 'var(--text3)';
+      deltaHtml = '<div style="margin-top:.4rem;font-size:.7rem">' +
+        '<span style="color:var(--text3)">' + formatNum(oldVal) + '</span>' +
+        ' <span style="color:var(--cyan)">\u2192</span> ' +
+        '<span style="color:' + color + ';font-weight:700">' + formatNum(newVal) +
+        ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%)</span></div>';
+    }
+
+    card.innerHTML =
+      '<div class="smart-icon">' + icon + '</div>' +
+      '<div class="smart-body">' +
+        '<div class="smart-title">' + ns.step.replace(/_/g, ' ').toUpperCase() + '</div>' +
+        '<div class="smart-value">' + formatNum(newVal) + '</div>' +
+        deltaHtml +
+      '</div>';
+    area.appendChild(card);
+  });
+
+  // Latency
+  const totalNs = newResult.total_ns || newData.total_ns || 0;
+  const latDiv = document.createElement('div');
+  latDiv.style.cssText = 'margin-top:.75rem';
+  latDiv.innerHTML = buildLatencyBadge(totalNs);
+  area.appendChild(latDiv);
+
+  area.appendChild(buildJsonToggle(newData));
+}
+
+/* ═══ EVAL RESULT ═══ */
+function showEvalResult(d) {
+  const area = $('#resultArea');
+  area.style.display = 'block';
+  $('#resultEmpty').style.display = 'none';
+  area.innerHTML = '';
+
+  const val = d.result !== undefined ? d.result : d.value;
+  const ns = d.latency_ns || d.total_ns || 0;
+
+  const card = document.createElement('div');
+  card.className = 'result-card highlight';
+  card.innerHTML =
+    '<div class="eval-result">' +
+      '<div class="eval-label">Expression Result</div>' +
+      '<div class="eval-value">' + (typeof val === 'number' ? val.toLocaleString(undefined, {maximumFractionDigits: 6}) : JSON.stringify(val)) + '</div>' +
+    '</div>' +
+    buildLatencyBadge(ns);
+  area.appendChild(card);
+  area.appendChild(buildJsonToggle(d));
+}
+
+/* ═══ ERROR ═══ */
+function showError(msg) {
+  const area = $('#resultArea');
+  area.style.display = 'block';
+  $('#resultEmpty').style.display = 'none';
+  area.innerHTML = '<div class="result-card" style="border-color:var(--red)33">' +
+    '<div class="smart-card"><div class="smart-icon">&#10060;</div>' +
+    '<div class="smart-body"><div class="smart-title" style="color:var(--red)">ERROR</div>' +
+    '<div class="smart-value" style="color:var(--red);font-size:1rem">' + escapeHtml(msg) + '</div></div></div></div>';
+}
+
+/* ═══ HELPERS ═══ */
+function formatNum(v) {
+  if (typeof v !== 'number') return String(v);
+  return v % 1 === 0 ? v.toLocaleString() : v.toLocaleString(undefined, {maximumFractionDigits: 4});
+}
+
+function formatNsDisplay(ns) {
+  if (ns >= 1e9) return (ns / 1e9).toFixed(2) + ' s';
+  if (ns >= 1e6) return (ns / 1e6).toFixed(2) + ' ms';
+  if (ns >= 1e3) return (ns / 1e3).toFixed(1) + ' \u00B5s';
+  return ns + ' ns';
+}
+
+function updateKpiLatency(ns) {
+  const el = $('#kpiLatency');
+  el.textContent = formatNsDisplay(ns);
+  el.style.animation = 'none';
+  void el.offsetWidth;
+  el.style.animation = 'counter-flash .5s ease-out';
+}
+
+function updateKpiThroughput(sps) {
+  const el = $('#kpiThroughput');
+  if (sps >= 1e6) el.textContent = (sps / 1e6).toFixed(1) + 'M /sec';
+  else if (sps >= 1e3) el.textContent = (sps / 1e3).toFixed(1) + 'K /sec';
+  else el.textContent = sps.toLocaleString() + ' /sec';
+  el.style.animation = 'none';
+  void el.offsetWidth;
+  el.style.animation = 'counter-flash .5s ease-out';
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+/* ── Sidebar toggle ── */
+$('#sidebarToggle').addEventListener('click', () => {
+  $('#sidebar').classList.toggle('collapsed');
+  const btn = $('#sidebarToggle');
+  btn.style.left = $('#sidebar').classList.contains('collapsed') ? '0' : 'var(--sidebar-w)';
+});
+
+/* ── Keyboard shortcuts ── */
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter') {
+    const active = document.activeElement;
+    if (active === $('#intentInput') || (active && active.closest && active.closest('#intentInput'))) {
+      $('#btnIntent').click();
+    } else if (active === $('#evalInput')) {
+      $('#btnEval').click();
+    } else {
+      $('#btnCompute').click();
+    }
+  }
+});
+
+})();
+</script>
+</body>
+</html>

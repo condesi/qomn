@@ -1,0 +1,86 @@
+# ═══════════════════════════════════════════════════════════════════════
+# CRYS-L — Dominio NFPA + Eléctrico
+# Qomni AI Lab · Condesi Perú · 2026
+#
+# Oráculos físicos:
+#   NFPA 13 — Sprinkler demand (gpm)
+#   NFPA 20 — Bomba contraincendio (HP, PSI)
+#   NFPA 72 — Detectores de humo (cobertura m²)
+#   NFPA 101 — Evacuación (flujo personas/min)
+#   Caída de tensión (%)
+#   Transformador (kVA)
+#   Tablero eléctrico (corriente de cortocircuito, kA)
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── NFPA 13: Caudal de sprinklers (Hazen-Williams) ────────────────────
+# Q = K × sqrt(P)
+# K = factor del sprinkler (típico: 5.6 estándar, 8.0 ESFR)
+oracle nfpa13_sprinkler(K: f32, P: f32) -> f32:
+    return K * P^0.5
+
+# ── NFPA 13: Demanda total del sistema ────────────────────────────────
+# Q_total = n_sprinklers × Q_sprinkler
+oracle nfpa13_demanda(K: f32, P: f32, n: f32) -> f32:
+    return n * K * P^0.5
+
+# ── NFPA 20: Potencia de bomba contraincendio ─────────────────────────
+# HP = (Q_gpm × H_ft) / (3960 × η)
+# Q en GPM, H en pies, η eficiencia (~0.70)
+oracle nfpa20_bomba_hp(Q_gpm: f32, H_ft: f32, eta: f32) -> f32:
+    return (Q_gpm * H_ft) / (3960.0 * eta)
+
+# ── NFPA 20: Presión de descarga (PSI) ────────────────────────────────
+# P = H_ft / 2.31
+oracle nfpa20_presion(H_ft: f32) -> f32:
+    return H_ft / 2.31
+
+# ── NFPA 72: Cobertura de detector de humo ────────────────────────────
+# Área = π × r² donde r = distancia_maxima / sqrt(2) por NFPA 72 §17.6
+oracle nfpa72_cobertura(r_m: f32) -> f32:
+    return 3.14159 * (r_m / 1.41421)^2.0
+
+# ── NFPA 72: Número de detectores requeridos ─────────────────────────
+oracle nfpa72_detectores(area_total: f32, r_m: f32) -> f32:
+    return area_total / (3.14159 * (r_m / 1.41421)^2.0)
+
+# ── NFPA 101: Flujo de evacuación ─────────────────────────────────────
+# Personas/min = ancho_m × 40 personas/m/min (coeficiente NFPA 101 §7.3)
+oracle nfpa101_evacuacion(ancho_m: f32, n_personas: f32) -> f32:
+    return n_personas / (ancho_m * 40.0)
+
+# ── Eléctrico: Caída de tensión (%) ───────────────────────────────────
+# ΔV% = (2 × L × I × R_por_km) / (10 × V_nominal)
+# R_cobre 2.5mm² ≈ 7.41 Ω/km, 4mm² ≈ 4.61, 6mm²≈3.08, 10mm²≈1.83
+oracle caida_tension(L_m: f32, I_A: f32, R_ohm_km: f32, V_nom: f32) -> f32:
+    return (2.0 * L_m * I_A * R_ohm_km) / (1000.0 * V_nom)
+
+# ── Eléctrico: Potencia de transformador (kVA) ────────────────────────
+# kVA = (P_kW) / FP
+oracle transformador_kva(P_kw: f32, FP: f32) -> f32:
+    return P_kw / FP
+
+# ── Eléctrico: Corriente de cortocircuito (kA) ───────────────────────
+# Icc = V_nominal / (sqrt(3) × Z_total_ohm)
+# Z_total incluye impedancia del transformador + cableado
+oracle corriente_cc(V_nom: f32, Z_total: f32) -> f32:
+    return V_nom / (1.73205 * Z_total)
+
+# ── Eléctrico: Corriente de carga (A) ────────────────────────────────
+oracle corriente_carga(P_kw: f32, V_nom: f32, FP: f32) -> f32:
+    return (P_kw * 1000.0) / (1.73205 * V_nom * FP)
+
+# ── Crystal de conocimiento NFPA+Eléctrico (SFT) ─────────────────────
+# crystal nfpa_electrico from "nfpa_electrico.crystal"
+
+# ── Routing ───────────────────────────────────────────────────────────
+route "sprinkler*"     -> oracle:nfpa13_sprinkler
+route "demanda*"       -> oracle:nfpa13_demanda
+route "bomba*"         -> oracle:nfpa20_bomba_hp
+route "presion*"       -> oracle:nfpa20_presion
+route "detector*"      -> oracle:nfpa72_detectores
+route "cobertura*"     -> oracle:nfpa72_cobertura
+route "evacuacion*"    -> oracle:nfpa101_evacuacion
+route "caida*"         -> oracle:caida_tension
+route "transformador*" -> oracle:transformador_kva
+route "cortocircuito*" -> oracle:corriente_cc
+route "carga*"         -> oracle:corriente_carga

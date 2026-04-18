@@ -1,0 +1,39 @@
+# CRYS-L Example — Dominio Hidráulica
+# Qomni AI Lab · Condesi Perú · 2026
+
+# ── Oracles físicos (Physics-as-Oracle) ──────────────────────
+oracle manning(n: f32, R: f32, S: f32) -> f32:
+    return (1.0 / n) * R ^ (2.0 / 3.0) * S ^ 0.5
+
+oracle darcy_weisbach(f: f32, L: f32, D: f32, V: f32) -> f32:
+    return f * (L / D) * (V ^ 2.0 / 19.62)
+
+oracle bernoulli(P1: f32, v1: f32, z1: f32, P2: f32, v2: f32, z2: f32) -> f32:
+    # Retorna pérdida de carga hL
+    return (P1 - P2) / 9810.0 + (v1 ^ 2.0 - v2 ^ 2.0) / 19.62 + (z1 - z2)
+
+oracle hazen_williams(C: f32, D: f32, S: f32) -> f32:
+    return 0.2785 * C * D ^ 2.63 * S ^ 0.54
+
+# ── Crystal load ──────────────────────────────────────────────
+crystal hidraulica = load @mmap "hidraulica.crystal"
+
+# ── Pipeline ──────────────────────────────────────────────────
+pipe calc_manning(n: f32, R: f32, S: f32):
+    Q = manning(n, R, S)
+    v = encode(Q, 4864)
+    result = hidraulica.infer(layer=0, x=v)
+    -> respond(result)
+
+pipe calc_perdida(f: f32, L: f32, D: f32, V: f32):
+    hf = darcy_weisbach(f, L, D, V)
+    v  = encode(hf, 4864)
+    result = hidraulica.infer(layer=0, x=v)
+    -> respond(result)
+
+# ── Routing ───────────────────────────────────────────────────
+route "Manning*"         -> pipe:calc_manning
+route "Darcy*"           -> pipe:calc_perdida
+route "hidráulica*"      -> crystal:hidraulica
+route "caudal*"          -> crystal:hidraulica
+route "presión*"         -> crystal:hidraulica
