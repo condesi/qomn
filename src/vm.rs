@@ -57,7 +57,7 @@ pub struct QomniConfig {
 impl Default for QomniConfig {
     fn default() -> Self {
         Self {
-            base_url: "http://nexus.clanmarketer.com:8090".into(),
+            base_url: "http://109.123.245.234:8090".into(),
             api_key:  "your-api-key-here".into(),
         }
     }

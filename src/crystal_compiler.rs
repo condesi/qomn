@@ -25,7 +25,7 @@ use std::io::Write;
 use crate::ast::{OracleDecl, Program, Decl, Expr, BinaryOp, UnaryOp};
 
 // ── Crystal binary format constants ─────────────────────────────────
-const MAGIC:   &[u8; 4] = b"QOMN";
+const MAGIC:   &[u8; 4] = b"CRYS";
 const VERSION: u8       = 1u8;
 const ROWS:    usize    = 896;   // hidden dim Qwen-0.5B FFN
 const COLS:    usize    = 4864;  // input dim

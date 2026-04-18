@@ -714,7 +714,7 @@ impl JitDetector {
 /// Cranelift JIT engine for hot MM_TERN + oracle kernels.
 ///
 /// Pipeline (v1.6 full implementation):
-///   QOMN-ISA oracle body
+///   CRYS-ISA oracle body
 ///   → lower to Cranelift IR (cranelift_codegen::ir)
 ///   → cranelift_jit::JITBuilder::new()
 ///   → compile() → *const u8 fn ptr
@@ -744,12 +744,12 @@ impl CraneliftJit {
     ) -> Option<OracleNativeFn> {
         eprintln!("[JIT/cranelift] Compiling oracle '{}' ({} params) → native x86-64",
             oracle_name, n_params);
-        // v1.6: lower QOMN-ISA oracle body to Cranelift IR:
+        // v1.6: lower CRYS-ISA oracle body to Cranelift IR:
         //   let mut ctx = cranelift_codegen::Context::new();
         //   ctx.func.signature.params = vec![AbiParam::new(F64); n_params];
         //   ctx.func.signature.returns = vec![AbiParam::new(F64)];
         //   let mut bcx = FunctionBuilder::new(&mut ctx.func, &mut func_ctx);
-        //   // emit cranelift instructions for each QOMN-ISA opcode
+        //   // emit cranelift instructions for each CRYS-ISA opcode
         //   // (Add→iadd, Mul→fmul, Pow→call to libm, etc.)
         //   let jit = JITBuilder::new(cranelift_module::default_libcall_names());
         //   let id = module.declare_function(...);

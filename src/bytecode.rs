@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// QOMN v1.4 — QOMN-ISA  (Bytecode IR + Optimizer)
+// QOMN v1.4 — CRYS-ISA  (Bytecode IR + Optimizer)
 //
 // ISA de dos niveles inspirada en MLIR/XLA/oneDNN:
 //
@@ -20,7 +20,7 @@
 //
 // Mejoras v1.4 sobre v1.3:
 //   1. TensorDesc table — shape/stride/layout/quantization desacoplados
-//   2. LOAD_QOMN mode   — L1_PIN | STREAM | PREFETCH (EPYC prefetch aware)
+//   2. LOAD_CRYS mode   — L1_PIN | STREAM | PREFETCH (EPYC prefetch aware)
 //   3. PAR_BEGIN/PAR_END + FORK/JOIN — paralelismo explícito de lanes
 //   4. ORACLE_CALL (→ ticket) + ORACLE_WAIT — async por defecto
 //   5. ACT %reg, func_id — ReLU / STEP / SIGMOID / CUSTOM_LUT
@@ -144,7 +144,7 @@ pub enum Op {
     StoreVar    = 0x05,
 
     // ── Crystal load (with cache mode) ─────────────────────────────
-    /// LOAD_QOMN   %ti  crys_id  mode     %ti ← mmap crystal[crys_id]
+    /// LOAD_CRYS   %ti  crys_id  mode     %ti ← mmap crystal[crys_id]
     /// flags encodes QomnoadMode: 0=L1_PIN 1=STREAM 2=PREFETCH
     LoadCrys    = 0x06,
 
@@ -599,7 +599,7 @@ impl Compiler {
                 ra2
             }
 
-            // Crystal inference: LOAD_QOMN + MM_TERN + ACT
+            // Crystal inference: LOAD_CRYS + MM_TERN + ACT
             Expr::CrystalInfer { crystal, layer, x } => {
                 let rx = self.compile_expr(x);
                 let crystal_name = match crystal.as_ref() {
@@ -612,7 +612,7 @@ impl Compiler {
                 let mode = self.module.crystals.get(cid as usize)
                     .map(|c| c.mode as u8).unwrap_or(0);
 
-                // %t_mat ← LOAD_QOMN cid, mode
+                // %t_mat ← LOAD_CRYS cid, mode
                 let t_mat = self.alloc_reg();
                 self.emit(Instr::new(Op::LoadCrys, t_mat, cid, 0)
                     .with_flags(mode));
@@ -791,7 +791,7 @@ fn pass_nop_strip(module: &mut Module) {
 
 pub fn disassemble(module: &Module) -> String {
     let mut out = String::new();
-    out.push_str("═══ QOMN-ISA v1.4 Bytecode ═══\n");
+    out.push_str("═══ CRYS-ISA v1.4 Bytecode ═══\n");
     out.push_str(&format!(
         "  {} instrs  {} consts  {} oracles  {} crystals  {} tensor_descs\n\n",
         module.code.len(), module.consts.len(),
@@ -828,7 +828,7 @@ pub fn disassemble(module: &Module) -> String {
             Op::LoadCrys   => {
                 let cname = module.crystals.get(instr.b as usize).map(|c| c.name.as_str()).unwrap_or("?");
                 let mode  = QomnoadMode::from(instr.flags & 0x03);
-                format!("{:04}  LOAD_QOMN    %t{} ← crystal:{} [{:?}]", ip, instr.a, cname, mode)
+                format!("{:04}  LOAD_CRYS    %t{} ← crystal:{} [{:?}]", ip, instr.a, cname, mode)
             }
             Op::Add        => format!("{:04}  ADD          %{} = %{} + %{}", ip, instr.a, instr.b, instr.c),
             Op::Sub        => format!("{:04}  SUB          %{} = %{} - %{}", ip, instr.a, instr.b, instr.c),

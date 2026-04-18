@@ -10,7 +10,7 @@ pub mod repl;
 pub mod server;
 pub mod crystal_compiler;
 pub mod cognitive_memory;   // Cognitive Memory: persist execution experiences
-pub mod bytecode;       // v1.4: QOMN-ISA bytecode IR + optimizer
+pub mod bytecode;       // v1.4: CRYS-ISA bytecode IR + optimizer
 pub mod aot_plan;       // v3.1: AOT pre-compiled plan dispatch (Level 1 + Level 2 JIT)
 pub mod batch_plan;
 pub mod simulation_engine; // v2.2: Continuous sim loop, SoA AVX2, physics layer, decision optimizer

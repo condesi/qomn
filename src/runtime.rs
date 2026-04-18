@@ -10,7 +10,7 @@
 // Flujo de ejecución (v1.4):
 //   BytecodeVm::ORACLE_CALL → AsyncOracleEngine::submit(oid, args) → ticket
 //   BytecodeVm::ORACLE_WAIT → AsyncOracleEngine::wait(ticket) → result
-//   BytecodeVm::LOAD_QOMN   → CrystalCache::load(cid, mode) → &[u8]
+//   BytecodeVm::LOAD_CRYS   → CrystalCache::load(cid, mode) → &[u8]
 //   BytecodeVm::MM_TERN     → backend_cpu::tgemv_ternary(...)
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -171,7 +171,7 @@ impl CrystalCache {
         f.read_exact(&mut header).map_err(|e| e.to_string())?;
 
         // Validate magic
-        if &header[0..4] != b"QOMN" {
+        if &header[0..4] != b"CRYS" {
             return Err(format!("Not a .crystal file: {}", path));
         }
 

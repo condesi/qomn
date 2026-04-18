@@ -5,7 +5,7 @@
 //   → Lexer → Parser → AST
 //   → HIR (High-Level IR graph: node fusion, oracle batching)
 //   → MIR (Tensor + Control IR)
-//   → QOMN-ISA Bytecode (v1.4: async oracle, PAR_BEGIN, LOAD_QOMN mode)
+//   → CRYS-ISA Bytecode (v1.4: async oracle, PAR_BEGIN, LOAD_CRYS mode)
 //   → Optimizer (DCE, Oracle Fusion, MM+ACT merge, NOP strip)
 //   → Runtime (async oracle engine, crystal cache, mem pool, profiler)
 //   → Backend CPU (AVX2 sign-blend MM_TERN — 15.62 GOPS on EPYC)
@@ -13,17 +13,17 @@
 //
 // CLI:
 //   qomn                         REPL
-//   qomn run     <file.qomn>     execute (tree-walk VM)
-//   qomn run-jit <file.qomn>     execute with JIT oracle dispatch (v1.6)
-//   qomn check <file.qomn>       type-check only
-//   qomn lex   <file.qomn>       dump tokens
-//   qomn hir   <file.qomn>       dump High-Level IR graph
-//   qomn ir    <file.qomn>       dump QOMN-ISA Bytecode IR
-//   qomn jit   <file.qomn>       compile oracles → native x86-64 (v1.6)
+//   qomn run     <file.crys>     execute (tree-walk VM)
+//   qomn run-jit <file.crys>     execute with JIT oracle dispatch (v1.6)
+//   qomn check <file.crys>       type-check only
+//   qomn lex   <file.crys>       dump tokens
+//   qomn hir   <file.crys>       dump High-Level IR graph
+//   qomn ir    <file.crys>       dump CRYS-ISA Bytecode IR
+//   qomn jit   <file.crys>       compile oracles → native x86-64 (v1.6)
 //   qomn bench [rows] [cols]     AVX2 MM_TERN 3-way benchmark
 //   qomn eval  <expr>            evaluate inline
-//   qomn compile <file.qomn> [out_dir]   oracle → .crystal (RFF PaO)
-//   qomn serve <file.qomn> [port]        HTTP API
+//   qomn compile <file.crys> [out_dir]   oracle → .crystal (RFF PaO)
+//   qomn serve <file.crys> [port]        HTTP API
 // ═══════════════════════════════════════════════════════════════════════
 
 mod lexer;
@@ -68,7 +68,7 @@ fn main() {
         }
 
         Some("run") => {
-            let path = args.get(2).expect("Usage: qomn run <file.qomn>");
+            let path = args.get(2).expect("Usage: qomn run <file.crys>");
             let src  = read_file(path);
             let prog = parse_src(&src);
             let mut vm = Vm::new(QomniConfig::default());
@@ -78,12 +78,12 @@ fn main() {
             }
         }
 
-        // qomn run-jit <file.qomn>
+        // qomn run-jit <file.crys>
         // Pre-compiles all oracle bodies to native x86-64 (Cranelift v1.6),
         // then executes via bytecode VM with JIT dispatch wired in.
         // After JIT_THRESHOLD=50 interpreter calls any hot oracle auto-compiles.
         Some("run-jit") => {
-            let path = args.get(2).expect("Usage: qomn run-jit <file.qomn>");
+            let path = args.get(2).expect("Usage: qomn run-jit <file.crys>");
             let src    = read_file(path);
             let prog   = parse_src(&src);
             let module = bytecode::compile_to_bytecode(&prog);
@@ -110,7 +110,7 @@ fn main() {
         }
 
         Some("check") => {
-            let path   = args.get(2).expect("Usage: qomn check <file.qomn>");
+            let path   = args.get(2).expect("Usage: qomn check <file.crys>");
             let src    = read_file(path);
             let prog   = parse_src(&src);
             let mut tc = TypeEnv::new();
@@ -124,7 +124,7 @@ fn main() {
         }
 
         Some("lex") => {
-            let path = args.get(2).expect("Usage: qomn lex <file.qomn>");
+            let path = args.get(2).expect("Usage: qomn lex <file.crys>");
             let src  = read_file(path);
             let mut lexer = Lexer::new(&src);
             for tok in lexer.tokenize() {
@@ -133,8 +133,8 @@ fn main() {
         }
 
         Some("hir") => {
-            // qomn hir <file.qomn>  — dump HIR graph after optimizations
-            let path = args.get(2).expect("Usage: qomn hir <file.qomn>");
+            // qomn hir <file.crys>  — dump HIR graph after optimizations
+            let path = args.get(2).expect("Usage: qomn hir <file.crys>");
             let src  = read_file(path);
             let prog = parse_src(&src);
             let graph = hir::build_hir(&prog);
@@ -142,8 +142,8 @@ fn main() {
         }
 
         Some("ir") => {
-            // qomn ir <file.qomn>  — dump QOMN-ISA Bytecode IR (v1.4)
-            let path = args.get(2).expect("Usage: qomn ir <file.qomn>");
+            // qomn ir <file.crys>  — dump CRYS-ISA Bytecode IR (v1.4)
+            let path = args.get(2).expect("Usage: qomn ir <file.crys>");
             let src  = read_file(path);
             let prog = parse_src(&src);
             let module = bytecode::compile_to_bytecode(&prog);
@@ -151,8 +151,8 @@ fn main() {
         }
 
         Some("jit") => {
-            // qomn jit <file.qomn>  — compile all oracle bodies → native x86-64
-            let path = args.get(2).expect("Usage: qomn jit <file.qomn>");
+            // qomn jit <file.crys>  — compile all oracle bodies → native x86-64
+            let path = args.get(2).expect("Usage: qomn jit <file.crys>");
             let src  = read_file(path);
             let prog = parse_src(&src);
             let module = bytecode::compile_to_bytecode(&prog);
@@ -252,10 +252,10 @@ fn main() {
             backend_cpu::benchmark_compare(rows, cols, n_runs);
         }
 
-        // qomn batch <file.qomn> [batch_size] [n_iters]
+        // qomn batch <file.crys> [batch_size] [n_iters]
         // v1.8 dual-path benchmark: scalar JIT vs AVX2 batch (vs AVX-512 if available)
         Some("batch") => {
-            let path       = args.get(2).expect("Usage: qomn batch <file.qomn> [batch_size] [n_iters]");
+            let path       = args.get(2).expect("Usage: qomn batch <file.crys> [batch_size] [n_iters]");
             let batch_size = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(64usize);
             let n_iters    = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(1000usize);
 
@@ -322,7 +322,7 @@ fn main() {
         }
 
         Some("compile") => {
-            let path    = args.get(2).expect("Usage: qomn compile <file.qomn> [out_dir]");
+            let path    = args.get(2).expect("Usage: qomn compile <file.crys> [out_dir]");
             let out_dir = args.get(3).map(|s| s.as_str()).unwrap_or(".");
             let src     = read_file(path);
             let prog    = parse_src(&src);
@@ -362,10 +362,10 @@ fn main() {
         }
 
         // ── v2.0: Plan execution ──────────────────────────────────
-        // Usage: qomn plan <file.qomn> <plan_name> [key=value ...]
+        // Usage: qomn plan <file.crys> <plan_name> [key=value ...]
         // Example: qomn plan nfpa.crys plan_sistema_incendios area=1200 K=5.6 P_disponible=60
         Some("plan") => {
-            let path      = args.get(2).expect("Usage: qomn plan <file.qomn> <plan_name> [key=value ...]");
+            let path      = args.get(2).expect("Usage: qomn plan <file.crys> <plan_name> [key=value ...]");
             let plan_name = args.get(3).expect("Specify plan name");
             let src  = read_file(path);
             let prog = parse_src(&src);
@@ -424,10 +424,10 @@ fn main() {
         }
 
         // ── v2.0: Intent parsing ──────────────────────────────────
-        // Usage: qomn intent <file.qomn> "<natural language query>"
+        // Usage: qomn intent <file.crys> "<natural language query>"
         // Uses MockBackend (no API key needed). Set QOMNI_LLM_URL to use real LLM.
         Some("intent") => {
-            let path  = args.get(2).expect("Usage: qomn intent <file.qomn> <query>");
+            let path  = args.get(2).expect("Usage: qomn intent <file.crys> <query>");
             let query = args.get(3).expect("Provide query string in quotes");
             let src   = read_file(path);
             let prog  = parse_src(&src);
@@ -476,7 +476,7 @@ fn main() {
                 crate::server::set_no_fma_mode(true);
                 eprintln!("  [QOMN_NO_FMA=1] FMA fusion disabled — VMULSD+VADDSD enforced");
             }
-            let path = args.get(2).expect("Usage: qomn serve <file.qomn> [port]");
+            let path = args.get(2).expect("Usage: qomn serve <file.crys> [port]");
             let port: u16 = args.get(3).and_then(|p| p.parse().ok()).unwrap_or(9000);
             let src  = read_file(path);
             let prog = parse_src(&src);

@@ -2,7 +2,7 @@
 // QOMN — JIT Engine v1.7.1 (Cranelift — oracle bodies → native x86-64)
 //
 // Pipeline:
-//   QOMN-ISA oracle bytecode (bytecode::Module)
+//   CRYS-ISA oracle bytecode (bytecode::Module)
 //   → walk opcodes from entry_ip → Return/Halt
 //   → lower each opcode to Cranelift IR (F64 SSA values)
 //   → JITModule::define_function() → finalize → fn_ptr
@@ -12,7 +12,7 @@
 //   unsafe extern "C" fn(params: *const f64, n_params: usize) -> f64
 //   Caller stacks args as &[f64] slice, passes raw pointer.
 //
-// Supported QOMN-ISA opcodes in oracle bodies:
+// Supported CRYS-ISA opcodes in oracle bodies:
 //   LoadConst  → f64const (from Module.consts pool)
 //   LoadVar    → SSA alias from var_vals map
 //   StoreVar   → update var_vals map
