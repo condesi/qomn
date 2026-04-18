@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L v0.3 — Parser  (Token stream → AST)
+// QOMN v0.3 — Parser  (Token stream → AST)
 // Recursive descent, handles INDENT/DEDENT for blocks.
 // ═══════════════════════════════════════════════════════════════════════
 

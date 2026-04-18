@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CRYS-L Engine - Full 6-Level Test Suite v2.0
+"""QOMN Engine - Full 6-Level Test Suite v2.0
 Level 1: Functional (correct results)
 Level 2: Speed (ns-level benchmarks)
 Level 3: Simulation (sweep + best config)
@@ -44,7 +44,7 @@ def steps_dict(d):
 
 # =====================================================================
 print("=" * 70)
-print("  CRYS-L Engine - 6-Level Test Suite v2.0")
+print("  QOMN Engine - 6-Level Test Suite v2.0")
 print("=" * 70)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

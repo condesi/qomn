@@ -1,4 +1,4 @@
-// CRYS-L v2.3 — Hazen-Williams Pipe Flow
+// QOMN v2.3 — Hazen-Williams Pipe Flow
 // Standard: IS.010 Peru (hydraulic design), AWWA M23
 
 plan_pipe_hazen(Q_lps: f64, C: f64 = 150.0, D_mm: f64, L_m: f64) {

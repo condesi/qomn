@@ -1,4 +1,4 @@
-// CRYS-L v2.3 — NFPA 13 Automatic Sprinkler System Sizing
+// QOMN v2.3 — NFPA 13 Automatic Sprinkler System Sizing
 // Standard: NFPA 13:2022
 
 plan_sprinkler_system(area_ft2: f64, K: f64, P_avail: f64, hose_stream: f64 = 250.0) {

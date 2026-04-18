@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L — HIR (High-Level IR)
+// QOMN — HIR (High-Level IR)
 //
 // Representación de grafo de nodos semánticos.
 // Análogo a: MLIR funcional, TorchScript IR, XLA HLO.
 //
-// El frontend (parser CRYS-L) produce un AST; el HIR Builder lo transforma
+// El frontend (parser QOMN) produce un AST; el HIR Builder lo transforma
 // en un DAG de nodos donde cada nodo tiene:
 //   - tipo semántico (MatMul, Oracle, Act, Crystal...)
 //   - aristas de datos (input_ids → output_id)

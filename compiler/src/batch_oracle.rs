@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L v1.8 — Batch Oracle Execution Engine (Dual-Path)
+// QOMN v1.8 — Batch Oracle Execution Engine (Dual-Path)
 //
 // Architecture:
 //   Single call (batch=1)  → scalar JIT (3–4 ns/call)  ← v1.7.1 path

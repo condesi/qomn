@@ -1,6 +1,6 @@
 # QOMN API Documentation v3.2
 
-**Crystal Language — Deterministic Engineering Optimization Runtime**
+**QOMN Language — Deterministic Engineering Optimization Runtime**
 Qomni AI Lab · Condesi Perú
 
 Base URL: `https://qomni.clanmarketer.com/qomn/api`

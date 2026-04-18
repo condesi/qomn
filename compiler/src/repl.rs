@@ -11,7 +11,7 @@ use crate::vm::{Vm, QomniConfig};
 
 const BANNER: &str = r#"
   ╔═══════════════════════════════════════════════════╗
-  ║   QOMN v1.0  — Crystal Language REPL           ║
+  ║   QOMN v1.0  — QOMN Language REPL           ║
   ║   Qomni AI Lab · Condesi Perú · 2026             ║
   ║                                                   ║
   ║   Tipos: trit  tvec[n]  tmat[r][c]               ║

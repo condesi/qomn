@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L v2.0 — Type Checker
+// QOMN v2.0 — Type Checker
 // Validates ternary type compatibility, unit types, oracle signatures,
 // range bounds, and plan declarations.
 // ═══════════════════════════════════════════════════════════════════════

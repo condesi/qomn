@@ -2,7 +2,7 @@
 name    = "qomn"
 version = "0.1.6"
 edition = "2021"
-description = "QOMN compiler — Crystal Language for ternary AI inference"
+description = "QOMN compiler — QOMN Language for ternary AI inference"
 authors = ["Percy Rojas Masgo <percy.rojas@condesi.pe>"]
 license = "Apache-2.0"
 

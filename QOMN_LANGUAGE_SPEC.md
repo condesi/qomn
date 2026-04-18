@@ -1,4 +1,4 @@
-# CRYS-L: Crystal Language Specification v3.1
+# QOMN: QOMN Language Specification v3.1
 
 **A Domain-Specific Language for Real-Time Engineering Computation**
 
@@ -9,7 +9,7 @@ April 2026
 
 ## Abstract
 
-CRYS-L (Crystal Language) is a statically-typed, JIT-compiled domain-specific language designed for sub-microsecond engineering computation. Unlike general-purpose languages, CRYS-L compiles domain knowledge (fire protection, electrical, structural, hydraulics, finance) into native x86-64 machine code via Cranelift, achieving computation times of **1.4–2.5 µs per plan** — within 175x of C -O2 bare metal. The language introduces the concepts of *oracles* (pure computation kernels), *plans* (directed acyclic graphs of oracle calls), and *intent routing* (natural language → plan dispatch). This paper documents the complete language specification, compiler architecture, AOT optimization pipeline, and benchmark results.
+QOMN (QOMN Language) is a statically-typed, JIT-compiled domain-specific language designed for sub-microsecond engineering computation. Unlike general-purpose languages, QOMN compiles domain knowledge (fire protection, electrical, structural, hydraulics, finance) into native x86-64 machine code via Cranelift, achieving computation times of **1.4–2.5 µs per plan** — within 175x of C -O2 bare metal. The language introduces the concepts of *oracles* (pure computation kernels), *plans* (directed acyclic graphs of oracle calls), and *intent routing* (natural language → plan dispatch). This paper documents the complete language specification, compiler architecture, AOT optimization pipeline, and benchmark results.
 
 ---
 
@@ -36,7 +36,7 @@ CRYS-L (Crystal Language) is a statically-typed, JIT-compiled domain-specific la
 
 ## 1. Language Overview
 
-CRYS-L is not a general-purpose language. It is a *computation language* — every program describes a set of mathematical functions (oracles) and their composition (plans). The language enforces:
+QOMN is not a general-purpose language. It is a *computation language* — every program describes a set of mathematical functions (oracles) and their composition (plans). The language enforces:
 
 - **Purity**: Oracles are pure functions with no side effects
 - **Determinism**: Same inputs always produce same outputs
@@ -49,7 +49,7 @@ CRYS-L is not a general-purpose language. It is a *computation language* — eve
 "Compute what C computes, express what Python expresses, deploy what Docker deploys."
 ```
 
-CRYS-L occupies a unique niche: it combines the mathematical expressiveness of domain-specific notations (NFPA formulas, Hazen-Williams equations, NEC electrical codes) with the execution speed of compiled native code, wrapped in a REST API that accepts natural language queries.
+QOMN occupies a unique niche: it combines the mathematical expressiveness of domain-specific notations (NFPA formulas, Hazen-Williams equations, NEC electrical codes) with the execution speed of compiled native code, wrapped in a REST API that accepts natural language queries.
 
 ### Hello World
 
@@ -136,7 +136,7 @@ Response (in 1.8 µs):
 
 ### 3.2 Ternary Types
 
-CRYS-L has first-class support for ternary ({-1, 0, +1}) computation:
+QOMN has first-class support for ternary ({-1, 0, +1}) computation:
 
 | Type | Description |
 |---|---|
@@ -147,7 +147,7 @@ CRYS-L has first-class support for ternary ({-1, 0, +1}) computation:
 
 ### 3.3 Physical Unit Types (v2.0)
 
-CRYS-L supports dimensional analysis through unit annotations:
+QOMN supports dimensional analysis through unit annotations:
 
 ```crys
 oracle nfpa13_sprinkler(K: float(gpm/psi^0.5), P: float(psi)) -> float(gpm):
@@ -364,7 +364,7 @@ respond(expr)       // Output from pipe
 
 ## 7. The Oracle Model
 
-Oracles are the core abstraction in CRYS-L. An oracle represents a single, verifiable engineering formula.
+Oracles are the core abstraction in QOMN. An oracle represents a single, verifiable engineering formula.
 
 ### 7.1 Properties
 
@@ -376,7 +376,7 @@ Oracles are the core abstraction in CRYS-L. An oracle represents a single, verif
 
 ### 7.2 JIT Compilation
 
-When CRYS-L starts in `serve` mode:
+When QOMN starts in `serve` mode:
 
 ```
 Source (.crys) → Lexer → Parser → AST → Bytecode → JIT (Cranelift) → x86-64 fn_ptr
@@ -538,7 +538,7 @@ extern "C" double oracle_fn(const double* params, size_t n_params);
 
 ### 10.3 Power Inlining
 
-| CRYS-L Expression | Cranelift IR | Latency |
+| QOMN Expression | Cranelift IR | Latency |
 |---|---|---|
 | `x ^ 0.5` | `fsqrt(x)` | 1–3 ns |
 | `x ^ 2.0` | `fmul(x, x)` | <1 ns |
@@ -838,7 +838,7 @@ The server also provides:
 | Engine | Latency/call | Notes |
 |---|---|---|
 | C -O2 (bare metal) | 1.2–1.7 ns | Baseline |
-| CRYS-L JIT (Cranelift) | 2.4–5.0 ns | 2–3x C |
+| QOMN JIT (Cranelift) | 2.4–5.0 ns | 2–3x C |
 | Bytecode Interpreter | 165–266 ns | 66–110x slower than JIT |
 | Python equivalent | ~50,000 ns | 10,000–20,000x slower than JIT |
 
@@ -861,7 +861,7 @@ The server also provides:
 |---|---|---|
 | C -O2 (bare metal) | 8 ns | 1x |
 | Rust native (no JIT) | 15–30 ns | 2–4x |
-| **CRYS-L AOT (warm)** | **1,400 ns** | **175x** |
+| **QOMN AOT (warm)** | **1,400 ns** | **175x** |
 | Go (compiled) | ~5,000 ns | 625x |
 | Java (JVM HotSpot) | ~50,000 ns | 6,250x |
 | JavaScript (V8) | ~500,000 ns | 62,500x |
@@ -880,7 +880,7 @@ At 1,400 ns per plan, the theoretical throughput is:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      CRYS-L v3.1 Architecture                   │
+│                      QOMN v3.1 Architecture                   │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  Natural Language Query                                         │
@@ -913,7 +913,7 @@ At 1,400 ns per plan, the theoretical throughput is:
 │  │  6,956 lines     │  34+ endpoints                            │
 │  └─────────────────┘                                            │
 │                                                                 │
-│  Total: 18,271 lines Rust · 985 lines CRYS-L stdlib            │
+│  Total: 18,271 lines Rust · 985 lines QOMN stdlib            │
 │  171 oracles · 55 plans · 13 domains                            │
 │  JIT: Cranelift 0.113 · AOT: Pre-resolved dispatch              │
 └─────────────────────────────────────────────────────────────────┘
@@ -952,47 +952,47 @@ At 1,400 ns per plan, the theoretical throughput is:
 ## Appendix A: CLI Usage
 
 ```
-crysl                              Interactive REPL
-crysl run <file.crys>              Execute (tree-walk VM)
-crysl run-jit <file.crys>          Execute with JIT oracle dispatch
-crysl check <file.crys>            Type-check only
-crysl lex <file.crys>              Dump tokens
-crysl hir <file.crys>              Dump High-Level IR graph
-crysl ir <file.crys>               Dump CRYS-ISA Bytecode
-crysl jit <file.crys>              Compile oracles → native x86-64
-crysl bench [rows] [cols]          AVX2 MM_TERN benchmark
-crysl eval <expr>                  Evaluate inline expression
-crysl compile <file.crys> [dir]    Compile oracle → .crystal (RFF PaO)
-crysl serve <file.crys> [port]     Start HTTP API server
-crysl plan <file.crys> <plan> ...  Execute named plan
-crysl intent <file.crys> <query>   Parse intent and execute
+qomn                              Interactive REPL
+qomn run <file.crys>              Execute (tree-walk VM)
+qomn run-jit <file.crys>          Execute with JIT oracle dispatch
+qomn check <file.crys>            Type-check only
+qomn lex <file.crys>              Dump tokens
+qomn hir <file.crys>              Dump High-Level IR graph
+qomn ir <file.crys>               Dump CRYS-ISA Bytecode
+qomn jit <file.crys>              Compile oracles → native x86-64
+qomn bench [rows] [cols]          AVX2 MM_TERN benchmark
+qomn eval <expr>                  Evaluate inline expression
+qomn compile <file.crys> [dir]    Compile oracle → .crystal (RFF PaO)
+qomn serve <file.crys> [port]     Start HTTP API server
+qomn plan <file.crys> <plan> ...  Execute named plan
+qomn intent <file.crys> <query>   Parse intent and execute
 ```
 
 ## Appendix B: Deployment
 
 ```bash
 # Build
-cd /opt/crysl
+cd /opt/qomn
 cargo build --release
 
 # Deploy
-systemctl stop crysl-nfpa
-cp target/release/crysl /usr/local/bin/crysl
-systemctl start crysl-nfpa
+systemctl stop qomn-nfpa
+cp target/release/qomn /usr/local/bin/qomn
+systemctl start qomn-nfpa
 
 # Verify
 curl http://localhost:9001/health
-# {"status":"ok","lang":"CRYS-L","version":"3.0","plans":55,"jit":true,"watchdog":"healthy"}
+# {"status":"ok","lang":"QOMN","version":"3.0","plans":55,"jit":true,"watchdog":"healthy"}
 ```
 
 Service configuration:
 ```ini
 [Unit]
-Description=CRYS-L NFPA Computation Engine
+Description=QOMN NFPA Computation Engine
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/crysl serve /opt/crysl/stdlib/all_domains.crys 9001
+ExecStart=/usr/local/bin/qomn serve /opt/qomn/stdlib/all_domains.crys 9001
 Restart=always
 RestartSec=3
 
@@ -1002,6 +1002,6 @@ WantedBy=multi-user.target
 
 ---
 
-*CRYS-L is developed by Qomni AI Lab, a division of Condesi Perú.*
+*QOMN is developed by Qomni AI Lab, a division of Condesi Perú.*
 *Percy Rojas Masgo — CEO & Lead Architect*
 *April 2026*

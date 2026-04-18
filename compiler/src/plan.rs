@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L v2.0 — Plan Execution Engine
+// QOMN v2.0 — Plan Execution Engine
 // Percy Rojas M. · Qomni AI Lab · 2026
 //
 // Executes plan_decl DAGs:

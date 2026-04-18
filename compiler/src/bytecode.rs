@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L v1.4 — CRYS-ISA  (Bytecode IR + Optimizer)
+// QOMN v1.4 — CRYS-ISA  (Bytecode IR + Optimizer)
 //
 // ISA de dos niveles inspirada en MLIR/XLA/oneDNN:
 //
@@ -88,7 +88,7 @@ impl Default for TensorDesc {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum CrysLoadMode {
+pub enum QomnoadMode {
     /// Pin crystal into L1/L2 cache (small crystals ≤ 4 MB)
     L1Pin    = 0,
     /// Stream — read sequentially without polluting cache (large crystals)
@@ -97,7 +97,7 @@ pub enum CrysLoadMode {
     Prefetch = 2,
 }
 
-impl From<u8> for CrysLoadMode {
+impl From<u8> for QomnoadMode {
     fn from(v: u8) -> Self {
         match v { 1 => Self::Stream, 2 => Self::Prefetch, _ => Self::L1Pin }
     }
@@ -145,7 +145,7 @@ pub enum Op {
 
     // ── Crystal load (with cache mode) ─────────────────────────────
     /// LOAD_CRYS   %ti  crys_id  mode     %ti ← mmap crystal[crys_id]
-    /// flags encodes CrysLoadMode: 0=L1_PIN 1=STREAM 2=PREFETCH
+    /// flags encodes QomnoadMode: 0=L1_PIN 1=STREAM 2=PREFETCH
     LoadCrys    = 0x06,
 
     // ── Arithmetic ─────────────────────────────────────────────────
@@ -298,7 +298,7 @@ pub struct CrystalMeta {
     /// Index into tensor_descs for this crystal's weight matrix
     pub desc_id: usize,
     /// Default load mode
-    pub mode:    CrysLoadMode,
+    pub mode:    QomnoadMode,
 }
 
 // ── Compiler ──────────────────────────────────────────────────────────
@@ -428,7 +428,7 @@ impl Compiler {
         // Large crystals (86 MB) → STREAM mode to avoid cache pollution
         let mode = if std::path::Path::new(&crystal.path)
             .metadata().map(|m| m.len()).unwrap_or(0) > 4 * 1024 * 1024
-        { CrysLoadMode::Stream } else { CrysLoadMode::L1Pin };
+        { QomnoadMode::Stream } else { QomnoadMode::L1Pin };
 
         self.module.crystals.push(CrystalMeta {
             name: crystal.name.clone(),
@@ -780,7 +780,7 @@ pub fn disassemble(module: &Module) -> String {
                 module.vars.get(instr.a as usize).map(|s| s.as_str()).unwrap_or("?"), instr.b),
             Op::LoadCrys   => {
                 let cname = module.crystals.get(instr.b as usize).map(|c| c.name.as_str()).unwrap_or("?");
-                let mode  = CrysLoadMode::from(instr.flags & 0x03);
+                let mode  = QomnoadMode::from(instr.flags & 0x03);
                 format!("{:04}  LOAD_CRYS    %t{} ← crystal:{} [{:?}]", ip, instr.a, cname, mode)
             }
             Op::Add        => format!("{:04}  ADD          %{} = %{} + %{}", ip, instr.a, instr.b, instr.c),

@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L v2.0 — Cognitive Execution Engine + JIT + Typed Units + Plans
+// QOMN v2.0 — Cognitive Execution Engine + JIT + Typed Units + Plans
 //
-// Pipeline: CRYS-L source
+// Pipeline: QOMN source
 //   → Lexer → Parser → AST
 //   → HIR (High-Level IR graph: node fusion, oracle batching)
 //   → MIR (Tensor + Control IR)
@@ -12,18 +12,18 @@
 //   → JIT (Cranelift v1.6: oracle bodies → native x86-64)
 //
 // CLI:
-//   crysl                         REPL
-//   crysl run     <file.crys>     execute (tree-walk VM)
-//   crysl run-jit <file.crys>     execute with JIT oracle dispatch (v1.6)
-//   crysl check <file.crys>       type-check only
-//   crysl lex   <file.crys>       dump tokens
-//   crysl hir   <file.crys>       dump High-Level IR graph
-//   crysl ir    <file.crys>       dump CRYS-ISA Bytecode IR
-//   crysl jit   <file.crys>       compile oracles → native x86-64 (v1.6)
-//   crysl bench [rows] [cols]     AVX2 MM_TERN 3-way benchmark
-//   crysl eval  <expr>            evaluate inline
-//   crysl compile <file.crys> [out_dir]   oracle → .crystal (RFF PaO)
-//   crysl serve <file.crys> [port]        HTTP API
+//   qomn                         REPL
+//   qomn run     <file.crys>     execute (tree-walk VM)
+//   qomn run-jit <file.crys>     execute with JIT oracle dispatch (v1.6)
+//   qomn check <file.crys>       type-check only
+//   qomn lex   <file.crys>       dump tokens
+//   qomn hir   <file.crys>       dump High-Level IR graph
+//   qomn ir    <file.crys>       dump CRYS-ISA Bytecode IR
+//   qomn jit   <file.crys>       compile oracles → native x86-64 (v1.6)
+//   qomn bench [rows] [cols]     AVX2 MM_TERN 3-way benchmark
+//   qomn eval  <expr>            evaluate inline
+//   qomn compile <file.crys> [out_dir]   oracle → .crystal (RFF PaO)
+//   qomn serve <file.crys> [port]        HTTP API
 // ═══════════════════════════════════════════════════════════════════════
 
 mod lexer;
@@ -60,7 +60,7 @@ fn main() {
         }
 
         Some("run") => {
-            let path = args.get(2).expect("Usage: crysl run <file.crys>");
+            let path = args.get(2).expect("Usage: qomn run <file.crys>");
             let src  = read_file(path);
             let prog = parse_src(&src);
             let mut vm = Vm::new(QomniConfig::default());
@@ -70,12 +70,12 @@ fn main() {
             }
         }
 
-        // crysl run-jit <file.crys>
+        // qomn run-jit <file.crys>
         // Pre-compiles all oracle bodies to native x86-64 (Cranelift v1.6),
         // then executes via bytecode VM with JIT dispatch wired in.
         // After JIT_THRESHOLD=50 interpreter calls any hot oracle auto-compiles.
         Some("run-jit") => {
-            let path = args.get(2).expect("Usage: crysl run-jit <file.crys>");
+            let path = args.get(2).expect("Usage: qomn run-jit <file.crys>");
             let src    = read_file(path);
             let prog   = parse_src(&src);
             let module = bytecode::compile_to_bytecode(&prog);
@@ -102,7 +102,7 @@ fn main() {
         }
 
         Some("check") => {
-            let path   = args.get(2).expect("Usage: crysl check <file.crys>");
+            let path   = args.get(2).expect("Usage: qomn check <file.crys>");
             let src    = read_file(path);
             let prog   = parse_src(&src);
             let mut tc = TypeEnv::new();
@@ -116,7 +116,7 @@ fn main() {
         }
 
         Some("lex") => {
-            let path = args.get(2).expect("Usage: crysl lex <file.crys>");
+            let path = args.get(2).expect("Usage: qomn lex <file.crys>");
             let src  = read_file(path);
             let mut lexer = Lexer::new(&src);
             for tok in lexer.tokenize() {
@@ -125,8 +125,8 @@ fn main() {
         }
 
         Some("hir") => {
-            // crysl hir <file.crys>  — dump HIR graph after optimizations
-            let path = args.get(2).expect("Usage: crysl hir <file.crys>");
+            // qomn hir <file.crys>  — dump HIR graph after optimizations
+            let path = args.get(2).expect("Usage: qomn hir <file.crys>");
             let src  = read_file(path);
             let prog = parse_src(&src);
             let graph = hir::build_hir(&prog);
@@ -134,8 +134,8 @@ fn main() {
         }
 
         Some("ir") => {
-            // crysl ir <file.crys>  — dump CRYS-ISA Bytecode IR (v1.4)
-            let path = args.get(2).expect("Usage: crysl ir <file.crys>");
+            // qomn ir <file.crys>  — dump CRYS-ISA Bytecode IR (v1.4)
+            let path = args.get(2).expect("Usage: qomn ir <file.crys>");
             let src  = read_file(path);
             let prog = parse_src(&src);
             let module = bytecode::compile_to_bytecode(&prog);
@@ -143,13 +143,13 @@ fn main() {
         }
 
         Some("jit") => {
-            // crysl jit <file.crys>  — compile all oracle bodies → native x86-64
-            let path = args.get(2).expect("Usage: crysl jit <file.crys>");
+            // qomn jit <file.crys>  — compile all oracle bodies → native x86-64
+            let path = args.get(2).expect("Usage: qomn jit <file.crys>");
             let src  = read_file(path);
             let prog = parse_src(&src);
             let module = bytecode::compile_to_bytecode(&prog);
 
-            println!("CRYS-L JIT v1.6 — Cranelift oracle compilation");
+            println!("QOMN JIT v1.6 — Cranelift oracle compilation");
             println!("  Source:  {}", path);
             println!("  Oracles: {}", module.oracles.len());
             println!();
@@ -228,13 +228,13 @@ fn main() {
         }
 
         Some("bench") => {
-            // crysl bench [rows] [cols] [n_runs]
+            // qomn bench [rows] [cols] [n_runs]
             // 3-way benchmark: scalar vs sign-blend v1.5.1 vs 2-bit+FMA v1.5.2
             let rows   = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(896usize);
             let cols   = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(4864usize);
             let n_runs = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(100usize);
 
-            println!("CRYS-L MM_TERN Benchmark v1.5.2 (3-way: scalar | sign-blend | 2bit+FMA)");
+            println!("QOMN MM_TERN Benchmark v1.5.2 (3-way: scalar | sign-blend | 2bit+FMA)");
             println!("  Matrix: {}×{}  ({} trits = {} KB packed)",
                 rows, cols, rows * cols, (rows * cols + 3) / 4 / 1024);
             println!("  Tile:   {}×{}  Prefetch distance: {} tiles",
@@ -244,10 +244,10 @@ fn main() {
             backend_cpu::benchmark_compare(rows, cols, n_runs);
         }
 
-        // crysl batch <file.crys> [batch_size] [n_iters]
+        // qomn batch <file.crys> [batch_size] [n_iters]
         // v1.8 dual-path benchmark: scalar JIT vs AVX2 batch (vs AVX-512 if available)
         Some("batch") => {
-            let path       = args.get(2).expect("Usage: crysl batch <file.crys> [batch_size] [n_iters]");
+            let path       = args.get(2).expect("Usage: qomn batch <file.crys> [batch_size] [n_iters]");
             let batch_size = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(64usize);
             let n_iters    = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(1000usize);
 
@@ -258,7 +258,7 @@ fn main() {
 
             let engine = batch_oracle::BatchOracleEngine::new();
 
-            println!("CRYS-L Batch Oracle Engine v1.8 — Dual-Path Execution");
+            println!("QOMN Batch Oracle Engine v1.8 — Dual-Path Execution");
             println!("  Source:     {}", path);
             println!("  Batch size: {}", batch_size);
             println!("  Iterations: {}", n_iters);
@@ -304,7 +304,7 @@ fn main() {
         }
 
         Some("eval") => {
-            let src  = args.get(2).expect("Usage: crysl eval <expr>");
+            let src  = args.get(2).expect("Usage: qomn eval <expr>");
             let prog = parse_src(src);
             let mut vm = Vm::new(QomniConfig::default());
             match vm.run(&prog) {
@@ -314,12 +314,12 @@ fn main() {
         }
 
         Some("compile") => {
-            let path    = args.get(2).expect("Usage: crysl compile <file.crys> [out_dir]");
+            let path    = args.get(2).expect("Usage: qomn compile <file.crys> [out_dir]");
             let out_dir = args.get(3).map(|s| s.as_str()).unwrap_or(".");
             let src     = read_file(path);
             let prog    = parse_src(&src);
 
-            println!("CRYS-L Compiler v1.4 — oracle → .crystal");
+            println!("QOMN Compiler v1.4 — oracle → .crystal");
             println!("  Physics-as-Oracle: RFF multi-scale projection");
             println!("  Input:   {}", path);
             println!("  Out dir: {}", out_dir);
@@ -354,10 +354,10 @@ fn main() {
         }
 
         // ── v2.0: Plan execution ──────────────────────────────────
-        // Usage: crysl plan <file.crys> <plan_name> [key=value ...]
-        // Example: crysl plan nfpa.crys plan_sistema_incendios area=1200 K=5.6 P_disponible=60
+        // Usage: qomn plan <file.crys> <plan_name> [key=value ...]
+        // Example: qomn plan nfpa.crys plan_sistema_incendios area=1200 K=5.6 P_disponible=60
         Some("plan") => {
-            let path      = args.get(2).expect("Usage: crysl plan <file.crys> <plan_name> [key=value ...]");
+            let path      = args.get(2).expect("Usage: qomn plan <file.crys> <plan_name> [key=value ...]");
             let plan_name = args.get(3).expect("Specify plan name");
             let src  = read_file(path);
             let prog = parse_src(&src);
@@ -416,10 +416,10 @@ fn main() {
         }
 
         // ── v2.0: Intent parsing ──────────────────────────────────
-        // Usage: crysl intent <file.crys> "<natural language query>"
+        // Usage: qomn intent <file.crys> "<natural language query>"
         // Uses MockBackend (no API key needed). Set QOMNI_LLM_URL to use real LLM.
         Some("intent") => {
-            let path  = args.get(2).expect("Usage: crysl intent <file.crys> <query>");
+            let path  = args.get(2).expect("Usage: qomn intent <file.crys> <query>");
             let query = args.get(3).expect("Provide query string in quotes");
             let src   = read_file(path);
             let prog  = parse_src(&src);
@@ -444,7 +444,7 @@ fn main() {
 
                     if let Some(plan_name) = intent_parser::route_to_plan(&intent, &available_plans) {
                         println!("\nRouted to plan: {}", plan_name);
-                        println!("Run: crysl plan {} {} {}",
+                        println!("Run: qomn plan {} {} {}",
                             path, plan_name,
                             intent.params.iter()
                                 .map(|(k,v)| format!("{}={}", k, v))
@@ -463,13 +463,13 @@ fn main() {
         }
 
         Some("serve") => {
-            let path = args.get(2).expect("Usage: crysl serve <file.crys> [port]");
+            let path = args.get(2).expect("Usage: qomn serve <file.crys> [port]");
             let port: u16 = args.get(3).and_then(|p| p.parse().ok()).unwrap_or(9000);
             let src  = read_file(path);
             let prog = parse_src(&src);
             let mut vm_inst = vm::Vm::new(vm::QomniConfig::default());
             let _ = vm_inst.run(&prog);
-            println!("  CRYS-L Cognitive Engine — serving '{}'", path);
+            println!("  QOMN Cognitive Engine — serving '{}'", path);
             println!("  Endpoints: GET /health  POST /query  POST /eval  GET /routes");
             let srv = server::CrysServer::new(vm_inst, prog, port);
             srv.run();

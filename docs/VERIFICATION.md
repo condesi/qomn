@@ -1,6 +1,6 @@
 # QOMN Verification & Validation Report
 
-**System:** QOMN v3.2 — Crystal Language Compiler
+**System:** QOMN v3.2 — QOMN Language Compiler
 **Author:** Percy Rojas Masgo, Condesi Perú / Qomni AI Lab
 **Date:** 2026-04-17
 **Live demo:** https://qomni.clanmarketer.com/qomn/

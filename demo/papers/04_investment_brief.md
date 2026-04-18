@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-Qomni AI Lab has developed **QOMN** (Crystal Language), a production-deployed, compiled domain-specific language for deterministic engineering optimization. The engine processes **154 million engineering scenarios per second** on commodity hardware, finds Pareto-optimal solutions in **1.84 milliseconds**, and operates with **zero crashes** under adversarial inputs.
+Qomni AI Lab has developed **QOMN** (QOMN Language), a production-deployed, compiled domain-specific language for deterministic engineering optimization. The engine processes **154 million engineering scenarios per second** on commodity hardware, finds Pareto-optimal solutions in **1.84 milliseconds**, and operates with **zero crashes** under adversarial inputs.
 
 QOMN is not a standalone product. It is the deterministic compute substrate of **Qomni** — a hybrid neuro-symbolic AI platform for engineering decision support. While large language models handle natural language and reasoning, QOMN handles exhaustive physics-constrained optimization. The combination produces capabilities neither component achieves alone.
 

@@ -1,4 +1,4 @@
-// CRYS-L v2.3 — Voltage Drop Calculation
+// QOMN v2.3 — Voltage Drop Calculation
 // Standard: CNE Perú / NEC 2020 Article 215
 
 plan_voltage_drop(I: f64, L: f64, rho: f64 = 1.68e-8, A: f64) {

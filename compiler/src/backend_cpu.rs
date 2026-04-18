@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L — Backend CPU v1.5.2 (AMD EPYC / x86-64)
+// QOMN — Backend CPU v1.5.2 (AMD EPYC / x86-64)
 //
 // Kernel MM_TERN: tgemv_2bit_avx2  (v1.5.2 — 2-bit direct, zero scratch)
 //
@@ -735,7 +735,7 @@ impl CraneliftJit {
         Self { enabled: false, compiled_count: 0 }
     }
 
-    /// Compile a CRYS-L oracle to native code.
+    /// Compile a QOMN oracle to native code.
     /// Stub: returns placeholder. Full impl in v1.6.
     pub fn compile_oracle(
         &mut self,

@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CRYS-L: Deterministic Engineering AI — 130M ops/s, Branchless AVX2 JIT</title>
-<meta name="description" content="CRYS-L compiles engineering physics to Cranelift JIT + AVX2, achieving 130M evaluations/second with IEEE-754 exact results. Open source Apache-2.0.">
-<meta name="keywords" content="CRYS-L, deterministic AI, engineering computation, Cranelift JIT, AVX2, branchless SIMD, Rust DSL, NFPA 20">
-<meta property="og:title" content="CRYS-L: 130M ops/s Deterministic Engineering AI">
+<title>QOMN: Deterministic Engineering AI — 130M ops/s, Branchless AVX2 JIT</title>
+<meta name="description" content="QOMN compiles engineering physics to Cranelift JIT + AVX2, achieving 130M evaluations/second with IEEE-754 exact results. Open source Apache-2.0.">
+<meta name="keywords" content="QOMN, deterministic AI, engineering computation, Cranelift JIT, AVX2, branchless SIMD, Rust DSL, NFPA 20">
+<meta property="og:title" content="QOMN: 130M ops/s Deterministic Engineering AI">
 <meta property="og:description" content="Branchless float masks, Cranelift JIT, AVX2. 130M evals/sec. Verify with curl.">
-<meta property="og:url" content="https://qomni.clanmarketer.com/crysl/">
+<meta property="og:url" content="https://qomni.clanmarketer.com/qomn/">
 <meta name="robots" content="index, follow">
 <style>
 /* ── Reset & Base ─────────────────────────────────────── */
@@ -478,7 +478,7 @@ footer{
 <div class="hero">
   <div class="hero-top">
     <div class="hero-brand">
-      <h1>CRYS-L</h1>
+      <h1>QOMN</h1>
       <div class="tagline">Real-time engineering decision engine</div>
     </div>
     <div class="hero-health">
@@ -585,7 +585,7 @@ footer{
 
 <!-- ═══ FOOTER ═══ -->
 <footer>
-  <span>CRYS-L v3.1 &middot; Cranelift JIT &middot; <span id="footerStats">-- plans &middot; -- oracles</span> &middot; Percy Rojas Masgo &middot; Qomni AI Lab</span>
+  <span>QOMN v3.1 &middot; Cranelift JIT &middot; <span id="footerStats">-- plans &middot; -- oracles</span> &middot; Percy Rojas Masgo &middot; Qomni AI Lab</span>
   <span id="footerVersion"></span>
 </footer>
 
@@ -664,7 +664,7 @@ const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 
 /* ── API helpers ── */
-const API_BASE = '/crysl/api';
+const API_BASE = '/qomn/api';
 async function api(method, path, body) {
   const opts = {method, headers: {}};
   if (body !== undefined) {
@@ -1101,7 +1101,7 @@ function buildServerDecisionPanel(dec) {
   html += '<div style="font-size:1.8rem">' + (statusIcons[status] || '\u2705') + '</div>';
   html += '<div style="flex:1">';
   html += '<div style="font-size:1rem;font-weight:800;color:' + borderColor + '">' + (statusLabels[status] || status) + '</div>';
-  html += '<div style="font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">CRYS-L Decision Engine v2</div>';
+  html += '<div style="font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">QOMN Decision Engine v2</div>';
   html += '</div>';
   // Risk badge
   const riskColor = (dec.risk_level === 'CRITICAL' || dec.risk_level === 'HIGH') ? 'var(--red)' : dec.risk_level === 'MEDIUM' ? 'var(--yellow)' : 'var(--green)';
@@ -1170,7 +1170,7 @@ function buildDecisionPanel(steps, planName) {
   html += '<div style="font-size:1.8rem">' + statusIcons[overallStatus] + '</div>';
   html += '<div>';
   html += '<div style="font-size:1rem;font-weight:800;color:' + statusColors[overallStatus] + '">' + statusLabels[overallStatus] + '</div>';
-  html += '<div style="font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">CRYS-L Decision Engine</div>';
+  html += '<div style="font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">QOMN Decision Engine</div>';
   html += '</div></div>';
 
   // Recommendations

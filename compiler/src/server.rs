@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L v1.1 — HTTP Server Mode
+// QOMN v1.1 — HTTP Server Mode
 // Expone un programa .crys como REST API.
 // Endpoints:
 //   GET  /health         → status
@@ -33,7 +33,7 @@ impl CrysServer {
         let listener = TcpListener::bind(&addr)
             .unwrap_or_else(|e| { eprintln!("Bind error: {}", e); std::process::exit(1) });
 
-        println!("  CRYS-L server listening on {}", addr);
+        println!("  QOMN server listening on {}", addr);
         println!("  Endpoints: GET /health  POST /query  POST /eval  GET /routes");
 
         for stream in listener.incoming() {
@@ -87,7 +87,7 @@ fn handle_conn(mut stream: TcpStream, vm: Arc<Mutex<Vm>>, _prog: Program) {
 fn route_request(method: &str, path: &str, body: &str, vm: &Arc<Mutex<Vm>>) -> (&'static str, String) {
     match (method, path) {
         ("GET", "/health") => {
-            ("200 OK", r#"{"status":"ok","lang":"CRYS-L","version":"1.0"}"#.into())
+            ("200 OK", r#"{"status":"ok","lang":"QOMN","version":"1.0"}"#.into())
         }
 
         ("GET", "/routes") => {

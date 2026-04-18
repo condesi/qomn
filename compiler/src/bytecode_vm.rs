@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L v1.6 — Bytecode VM (wired to Runtime + Backend CPU + JIT)
+// QOMN v1.6 — Bytecode VM (wired to Runtime + Backend CPU + JIT)
 //
 // Arquitectura:
 //   dispatch loop plano (cero recursión AST)
@@ -14,7 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 use std::collections::HashMap;
-use crate::bytecode::{Module, Op, Const, CrysLoadMode, ActFn};
+use crate::bytecode::{Module, Op, Const, QomnoadMode, ActFn};
 use crate::backend_cpu::{tgemv_ternary, apply_activation, unpack_2bit, ActFunc};
 use crate::runtime::{CrysRuntime, OracleTicket};
 use crate::jit::{JitEngine, JitFnTable, jit_table_call};
@@ -177,7 +177,7 @@ impl BytecodeVm {
                 // ── Crystal load (with cache mode) ─────────────────
                 Op::LoadCrys => {
                     let cid  = instr.b as usize;
-                    let mode = CrysLoadMode::from(instr.flags & 0x03);
+                    let mode = QomnoadMode::from(instr.flags & 0x03);
                     let path = module.crystals.get(cid)
                         .map(|c| c.path.clone())
                         .unwrap_or_default();
@@ -186,7 +186,7 @@ impl BytecodeVm {
                         .unwrap_or_default();
 
                     // Issue prefetch for PREFETCH mode (async, non-blocking)
-                    if mode == CrysLoadMode::Prefetch && runtime.crystal_cache.is_loaded(cid) {
+                    if mode == QomnoadMode::Prefetch && runtime.crystal_cache.is_loaded(cid) {
                         // Already cached — no-op
                     }
 
@@ -316,7 +316,7 @@ impl BytecodeVm {
                         .unwrap_or_default();
                     let mode = module.crystals.get(cid)
                         .map(|c| c.mode)
-                        .unwrap_or(CrysLoadMode::Stream);
+                        .unwrap_or(QomnoadMode::Stream);
 
                     // Get input vector
                     let x_vec: Vec<f32> = match &regs[x_reg] {
@@ -754,7 +754,7 @@ fn run_fork_lane(
 
             Op::LoadCrys => {
                 let cid  = instr.b as usize;
-                let mode = CrysLoadMode::from(instr.flags & 0x03);
+                let mode = QomnoadMode::from(instr.flags & 0x03);
                 let path = module.crystals.get(cid).map(|c| c.path.clone()).unwrap_or_default();
                 let name = module.crystals.get(cid).map(|c| c.name.clone()).unwrap_or_default();
                 let _ = rt.crystal_cache.load(cid, &path, mode);
@@ -765,7 +765,7 @@ fn run_fork_lane(
                 let cid  = instr.b as usize;
                 let x_reg = instr.c as usize;
                 let path = module.crystals.get(cid).map(|c| c.path.clone()).unwrap_or_default();
-                let mode = module.crystals.get(cid).map(|c| c.mode).unwrap_or(CrysLoadMode::Stream);
+                let mode = module.crystals.get(cid).map(|c| c.mode).unwrap_or(QomnoadMode::Stream);
                 let x_vec: Vec<f32> = match &regs[x_reg] {
                     BVal::Fvec(v) => v.clone(),
                     BVal::Tvec(v) => v.iter().map(|&t| t as f32).collect(),

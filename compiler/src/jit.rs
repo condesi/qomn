@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L — JIT Engine v1.7.1 (Cranelift — oracle bodies → native x86-64)
+// QOMN — JIT Engine v1.7.1 (Cranelift — oracle bodies → native x86-64)
 //
 // Pipeline:
 //   CRYS-ISA oracle bytecode (bytecode::Module)
@@ -289,7 +289,7 @@ impl JitEngine {
 
         let entry_ip = meta.entry_ip;
         let n_params = meta.n_params;
-        let sym      = format!("crysl_oracle_{}", oracle_name.replace(['-', '.'], "_"));
+        let sym      = format!("qomn_oracle_{}", oracle_name.replace(['-', '.'], "_"));
 
         // ── Function signature: fn(*const f64, usize) -> f64 ─────────
         let mut sig = self.module.make_signature();
