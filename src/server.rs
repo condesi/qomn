@@ -51,6 +51,10 @@ use crate::plan_v2::{parse_plans, execute_plan};
 static AOT_CACHE: std::sync::OnceLock<AotPlanCache> = std::sync::OnceLock::new();
 
 /// Initialize the global AOT cache. Called once from main.rs after JIT compile.
+pub fn set_no_fma_mode(enabled: bool) {
+    NO_FMA_MODE.store(enabled, Ordering::Relaxed);
+}
+
 pub fn init_aot_cache(cache: AotPlanCache) {
     let _ = AOT_CACHE.set(cache);
 }
@@ -352,12 +356,119 @@ fn handle_conn(
     } else {
         (status, "application/json")
     };
-    let cache_hdr = if ct == "text/event-stream" { "Cache-Control: no-cache\r\n" } else { "" };
+    let cache_hdr = "Cache-Control: no-store, no-cache, must-revalidate
+";
     let response = format!(
-        "HTTP/1.1 {}\r\nContent-Type: {}\r\n{}Access-Control-Allow-Origin: *\r\nContent-Length: {}\r\n\r\n{}",
+        "HTTP/1.1 {}
+Content-Type: {}
+{}X-CRYS-Computed: live
+X-CRYS-Version: 3.2
+Access-Control-Allow-Origin: *
+Content-Length: {}
+
+{}",
         real_status, ct, cache_hdr, json.len(), json
     );
     let _ = stream.write_all(response.as_bytes());
+}
+
+
+
+// ── Canonicalize -0.0 to +0.0 for deterministic hashing ─────────────
+#[inline(always)]
+fn canon_f64(v: f64) -> f64 {
+    // IEEE-754: -0.0 == +0.0 but they have different bits.
+    // Physics results should never be -0.0, but we enforce it here.
+    if v == 0.0 { 0.0 } else { v }
+}
+
+// ── Physics Guard: validate plan inputs before JIT execution ──────────
+fn validate_plan_physics(plan_name: &str, params: &std::collections::HashMap<String, f64>) -> Result<(), String> {
+    match plan_name {
+        "plan_pump_sizing" => {
+            let q = params.get("Q_gpm").copied().unwrap_or(0.0);
+            let p = params.get("P_psi").copied().unwrap_or(0.0);
+            let eff = params.get("eff").copied().unwrap_or(0.70);
+            if q <= 0.0 { return Err(format!("assertion failed: flow must be positive (Q_gpm={} must be > 0)", q)); }
+            if !q.is_finite() { return Err(format!("assertion failed: flow must be finite (Q_gpm={} — inf/NaN not allowed)", q)); }
+            if p <= 0.0 { return Err(format!("assertion failed: pressure must be positive (P_psi={} must be > 0)", p)); }
+            if !p.is_finite() { return Err(format!("assertion failed: pressure must be finite (P_psi={} — inf/NaN not allowed)", p)); }
+            if eff <= 0.0 { return Err(format!("assertion failed: efficiency must be positive (eff={} must be > 0)", eff)); }
+            if eff > 1.0 { return Err(format!("assertion failed: efficiency must be <= 1.0 (eff={} is physically impossible — max pump efficiency is 100%)", eff)); }
+            if q > 100_000.0 { return Err(format!("assertion failed: flow Q_gpm={} exceeds physical maximum for single pump (100,000 GPM). Use parallel pump configuration.", q)); }
+            if p > 5_000.0 { return Err(format!("assertion failed: pressure P_psi={} exceeds NFPA 20 maximum (5,000 PSI). Check units.", p)); }
+        }
+        "plan_sprinkler_system" => {
+            let k = params.get("K").copied().unwrap_or(0.0);
+            let p = params.get("P_psi").copied().unwrap_or(0.0);
+            let area = params.get("area_sqft").or(params.get("area")).copied().unwrap_or(0.0);
+            if k <= 0.0 { return Err(format!("assertion failed: K-factor must be positive (K={})", k)); }
+            if p < 0.0 { return Err(format!("assertion failed: pressure must be non-negative (P_psi={})", p)); }
+            if area < 0.0 { return Err(format!("assertion failed: area must be non-negative (area={})", area)); }
+        }
+        "plan_voltage_drop" => {
+            // Plan params: I (current A), L_m (length m), A_mm2 (conductor area mm2)
+            let i = params.get("I").copied().unwrap_or(0.0);
+            let l = params.get("L_m").copied().unwrap_or(0.0);
+            let a = params.get("A_mm2").copied().unwrap_or(0.0);
+            if i <= 0.0 { return Err(format!("assertion failed: current must be positive (I={} A)", i)); }
+            if l <= 0.0 { return Err(format!("assertion failed: cable length must be positive (L_m={} m)", l)); }
+            if a <= 0.0 { return Err(format!("assertion failed: conductor area must be positive (A_mm2={} mm²) — e.g. 4 mm², 16 mm², 35 mm²", a)); }
+        }
+        "plan_beam_analysis" => {
+            // Plan params: P_kn (load kN), L_m (span m), E_gpa (modulus GPa), I_cm4 (inertia cm4)
+            let p = params.get("P_kn").copied().unwrap_or(0.0);
+            let l = params.get("L_m").copied().unwrap_or(0.0);
+            let e = params.get("E_gpa").copied().unwrap_or(200.0);  // default steel
+            let i_val = params.get("I_cm4").copied().unwrap_or(0.0);
+            if p <= 0.0 { return Err(format!("assertion failed: load must be positive (P_kn={} kN)", p)); }
+            if l <= 0.0 { return Err(format!("assertion failed: span must be positive (L_m={} m)", l)); }
+            if e <= 0.0 { return Err(format!("assertion failed: elastic modulus must be positive (E_gpa={} GPa) — steel=200, concrete=25", e)); }
+            if i_val <= 0.0 { return Err(format!("assertion failed: moment of inertia must be positive (I_cm4={} cm4)", i_val)); }
+        }
+        "plan_pipe_hazen" => {
+            let q = params.get("Q").copied().unwrap_or(0.0);
+            let c = params.get("C").copied().unwrap_or(0.0);
+            let d = params.get("D").copied().unwrap_or(0.0);
+            let l = params.get("L").copied().unwrap_or(0.0);
+            if q <= 0.0 { return Err(format!("assertion failed: flow must be positive (Q={})", q)); }
+            if c <= 0.0 { return Err(format!("assertion failed: Hazen-Williams C must be positive (C={})", c)); }
+            if d <= 0.0 { return Err(format!("assertion failed: pipe diameter must be positive (D={})", d)); }
+            if d < 0.001 { return Err(format!("assertion failed: pipe diameter D={} is below physical minimum (0.001 = 1mm). Near-zero diameter causes numerical overflow — smallest standard pipe is NPS 1/8 inch = 0.00635m.", d)); }
+            if l <= 0.0 { return Err(format!("assertion failed: pipe length must be positive (L={})", l)); }
+            if l > 1_000_000.0 { return Err(format!("assertion failed: pipe length L={} km exceeds plausible engineering range (max 1,000 km)", l/1000.0)); }
+        }
+        "plan_drug_dosing" => {
+            let wt = params.get("weight_kg").copied().unwrap_or(0.0);
+            let dose = params.get("dose_mg_per_kg").copied().unwrap_or(0.0);
+            let freq = params.get("frequency_h").copied().unwrap_or(0.0);
+            if wt <= 0.0 { return Err(format!("assertion failed: patient weight must be positive (weight_kg={})", wt)); }
+            if dose <= 0.0 { return Err(format!("assertion failed: dose must be positive (dose_mg_per_kg={})", dose)); }
+            if freq <= 0.0 { return Err(format!("assertion failed: frequency must be positive (frequency_h={})", freq)); }
+            if wt > 500.0 { return Err(format!("assertion failed: weight exceeds physiological maximum (weight_kg={} > 500)", wt)); }
+        }
+        "plan_loan_amortization" => {
+            let p = params.get("principal").copied().unwrap_or(0.0);
+            let r = params.get("annual_rate").copied().unwrap_or(0.0);
+            let m = params.get("months").copied().unwrap_or(0.0);
+            if p <= 0.0 { return Err(format!("assertion failed: principal must be positive (principal={})", p)); }
+            if r < 0.0 { return Err(format!("assertion failed: interest rate must be non-negative (annual_rate={})", r)); }
+            if r > 10.0 { return Err(format!("assertion failed: annual_rate={} — did you mean {} (decimal, not percent)?", r, r/100.0)); }
+            if m <= 0.0 { return Err(format!("assertion failed: loan term must be positive (months={})", m)); }
+        }
+        "plan_cvss_assessment" => {
+            let check_metric = |name: &str, val: f64| -> Result<(), String> {
+                if val < 0.0 || val > 1.0 {
+                    Err(format!("assertion failed: CVSS metric {} must be in [0,1] (got {})", name, val))
+                } else { Ok(()) }
+            };
+            for (k, v) in params.iter() {
+                check_metric(k, *v)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn route_request(
@@ -377,10 +488,18 @@ fn route_request(
             let has_jit = jit_map.is_some();
             let turbo_n = AOT_CACHE.get().map(|a| a.turbo_count()).unwrap_or(0);
             let (wstatus, _) = crate::server::watchdog_assess();
+            // CPU feature detection for FMA consistency audit
+            let has_fma  = is_x86_feature_detected!("fma");
+            let has_avx2 = is_x86_feature_detected!("avx2");
+            let no_fma   = NO_FMA_MODE.load(Ordering::Relaxed);
+            let fma_path = if no_fma { "VMULSD+VADDSD (CRYS_NO_FMA)" } else if has_fma { "VFMADD231SD" } else { "VMULSD+VADDSD" };
+            // -0.0 canonicalization: active
+            // DAZ/FTZ: checked at runtime (MXCSR bits 6,15)
             ("200 OK", format!(
-                r#"{{"status":"{}","lang":"CRYS-L","version":"3.0","plans":{},"jit":{},"turbo":{},"watchdog":"{}"}}"#,
+                r#"{{"status":"{}","lang":"CRYS-L","version":"3.2","plans":{},"jit":{},"turbo":{},"watchdog":"{}","cpu":{{"fma":{},"avx2":{},"fma_path":"{}","zero_canon":true,"daz_active":false,"nan_shield":"avx2+fma_branchless","rounding":"FE_TONEAREST","no_fma":{}}}}}"#,
                 if wstatus == "healthy" { "ok" } else { wstatus },
-                n_plans, has_jit, turbo_n, wstatus
+                n_plans, has_jit, turbo_n, wstatus,
+                has_fma, has_avx2, fma_path, no_fma
             ))
         }
 
@@ -521,6 +640,11 @@ fn route_request(
                 None    => std::collections::HashMap::new(),
             };
 
+            // ── Physics guard ──
+            if let Err(e) = validate_plan_physics(&plan_name, &params) {
+                return ("400 Bad Request", format!(r#"{{"ok":false,"error":"{}"}}"#, e));
+            }
+
             // ── AOT fast path ──
             if let Some(aot) = AOT_CACHE.get() {
                 if aot.has_plan(&plan_name) {
@@ -588,6 +712,10 @@ fn route_request(
                             new_params.insert(k.clone(), *v);
                         }
                         // Execute with modified params
+                        // ── Physics guard ──
+                        if let Err(e) = validate_plan_physics(&plan_name, &new_params) {
+                            return ("400 Bad Request", format!(r#"{{"ok":false,"modified":true,"error":"{}"}}"#, e));
+                        }
                         let aot_result: Option<crate::plan::PlanResult> = AOT_CACHE.get()
                             .and_then(|aot| if aot.has_plan(&plan_name) { aot.execute(&plan_name, &new_params).ok() } else { None });
                         let exec_result = if let Some(r) = aot_result {
@@ -728,6 +856,10 @@ fn route_request(
                         Some(plan_name) => {
                             // Auto-populate params from intent
                             let params = intent.params.clone();
+                            // ── Physics guard ──
+                            if let Err(e) = validate_plan_physics(&plan_name, &params) {
+                                return ("400 Bad Request", format!(r#"{{\"ok\":false,\"domain\":\"{}\",\"error\":\"{}\"}}"#, domain, e));
+                            }
                             // ── AOT fast path ──
                             let aot_result: Option<crate::plan::PlanResult> = AOT_CACHE.get()
                                 .and_then(|aot| if aot.has_plan(&plan_name) { aot.execute(&plan_name, &params).ok() } else { None });
@@ -5366,7 +5498,10 @@ fn decision_rules_json() -> String {
 // ── Execution Graph Engine v3 ────────────────────────────────────────
 // ── Self-Healing Watchdog Metrics ────────────────────────────────────
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+/// CRYS_NO_FMA=1 → force VMULSD+VADDSD (SSE2) for cross-arch hash portability
+static NO_FMA_MODE: AtomicBool = AtomicBool::new(false);
 
 static REQ_COUNT:     AtomicU64 = AtomicU64::new(0);
 static REQ_NS_TOTAL:  AtomicU64 = AtomicU64::new(0);

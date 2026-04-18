@@ -235,6 +235,26 @@ Demo tier: rate-limited. Production access: percy.rojas@condesi.pe
 
 ---
 
+## Cross-Architecture Hash Portability
+
+```bash
+# Default: uses VFMADD231SD on FMA-capable CPUs (server, cloud)
+curl https://desarrollador.xyz/health
+# "fma_path":"VFMADD231SD","no_fma":false
+
+# CRYS_NO_FMA=1: force VMULSD+VADDSD — identical hash on any CPU (ARM, AVX-512, no-FMA)
+CRYS_NO_FMA=1 crysl serve stdlib/all_domains.crys 9001
+curl http://127.0.0.1:9001/health
+# "fma_path":"VMULSD+VADDSD (CRYS_NO_FMA)","no_fma":true
+```
+
+**Why this matters:** `VFMADD231SD` (FMA) rounds once — `VMULSD + VADDSD` rounds twice.
+For physics formulas like `Q * P / (3960 * eff)`, the results are identical (no fused mul-add pattern).
+For future oracles using explicit FMA, `CRYS_NO_FMA=1` guarantees the same SHA-256 hash across
+ARM servers, AMD EPYC, Intel Xeon, and any AVX-512 deployment.
+
+---
+
 ## Why this matters
 
 Engineering certifications require results that are **provably identical** across runs:

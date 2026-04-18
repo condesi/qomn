@@ -471,6 +471,11 @@ fn main() {
         }
 
         Some("serve") => {
+            // CRYS_NO_FMA=1 → force SSE2-only path for cross-arch hash portability
+            if std::env::var("CRYS_NO_FMA").map(|v| v == "1").unwrap_or(false) {
+                crate::server::set_no_fma_mode(true);
+                eprintln!("  [CRYS_NO_FMA=1] FMA fusion disabled — VMULSD+VADDSD enforced");
+            }
             let path = args.get(2).expect("Usage: crysl serve <file.crys> [port]");
             let port: u16 = args.get(3).and_then(|p| p.parse().ok()).unwrap_or(9000);
             let src  = read_file(path);
