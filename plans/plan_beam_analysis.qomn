@@ -1,4 +1,4 @@
-// CRYS-L v2.3 — Simply Supported Beam Analysis (Point Load at Midspan)
+// QOMN v2.3 — Simply Supported Beam Analysis (Point Load at Midspan)
 // Standard: AISC 360-22 / ACI 318-19
 
 plan_beam_analysis(P: f64, L: f64, E: f64 = 200e9, I: f64) {

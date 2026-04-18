@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CRYS-L Engine - Full Test Suite v1.0
+"""QOMN Engine - Full Test Suite v1.0
 Tests all endpoints and plans for correctness before publishing.
 """
 import json, urllib.request, sys
@@ -38,7 +38,7 @@ def warn(name, detail=""):
     results.append(("WARN", name, detail))
 
 print("=" * 70)
-print("  CRYS-L Engine - Full Test Suite")
+print("  QOMN Engine - Full Test Suite")
 print("=" * 70)
 
 # 1. HEALTH & META

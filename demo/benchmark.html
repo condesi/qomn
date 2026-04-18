@@ -54,7 +54,7 @@
   table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
   th { color: var(--cyan); padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; font-weight: normal; letter-spacing: 1px; }
   td { padding: 5px 8px; border-bottom: 1px solid #0d1e2e; }
-  tr.crysl td { color: var(--green); }
+  tr.qomn td { color: var(--green); }
   tr.cpp td { color: var(--dim); }
   tr.llm td { color: var(--magenta); }
 
@@ -84,7 +84,7 @@
 
 <h1><span class="dot" id="statusDot"></span>Deterministic Compute for Engineering Systems — Live</h1>
 <p style="font-size:0.85rem;color:#00ff9d;font-family:monospace;margin:4px 0 2px;letter-spacing:0.5px">Same input &rarr; same result &rarr; always &nbsp;&nbsp;|&nbsp;&nbsp; Reproducible &middot; Certifiable &middot; Production-safe</p>
-<p style="font-size:0.78rem;color:#ff4444;font-family:monospace;margin:6px 0 4px;line-height:1.6">Most engineering simulations cannot be reproduced exactly.<br>Same input &rarr; different results. &nbsp;This breaks certification, auditing, and safety validation.<br><b style="color:#ff6b6b">CRYS-L solves this.</b></p>
+<p style="font-size:0.78rem;color:#ff4444;font-family:monospace;margin:6px 0 4px;line-height:1.6">Most engineering simulations cannot be reproduced exactly.<br>Same input &rarr; different results. &nbsp;This breaks certification, auditing, and safety validation.<br><b style="color:#ff6b6b">QOMN solves this.</b></p>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 6px;font-size:0.72rem">
   <div style="background:#0d0d0d;border:1px solid #1a2a1a;border-radius:5px;padding:10px">
     <div style="color:#555;font-size:0.65rem;letter-spacing:2px;margin-bottom:6px">REPLACES</div>
@@ -100,7 +100,7 @@
   </div>
 </div>
 <p style="font-size:0.68rem;color:#00ff9d;letter-spacing:1px;margin:2px 0 6px;font-family:monospace">✔ Outperforming LLMs on deterministic engineering tasks · Open for API access · Condesi Perú</p>
-<p class="subtitle">CRYS-L v3.2 · Cranelift JIT + AVX2 · IEEE-754 exact · 0.0 variance · Fire · Electrical · Structural · Medical · Finance · Security · Condesi Perú</p>
+<p class="subtitle">QOMN v3.2 · Cranelift JIT + AVX2 · IEEE-754 exact · 0.0 variance · Fire · Electrical · Structural · Medical · Finance · Security · Condesi Perú</p>
 
 <div class="grid">
 
@@ -170,7 +170,7 @@
     <div class="panel-title">Live Competitive Proof — All Numbers Verifiable via API <span style="font-size:0.6rem;color:#ffd700;border:1px solid #ffd700;padding:2px 6px;border-radius:3px;margin-left:8px;vertical-align:middle">DEMO TIER · 30 req/min</span></div>
     <table>
       <tr><th>System</th><th>Scenarios/s</th><th>Jitter σ</th><th>Determinism</th><th>Multi-domain</th><th>$/month</th></tr>
-      <tr class="crysl"><td><b>CRYS-L v3.2</b><br><small>Deterministic JIT compute (AVX2)</small></td><td id="tblCrysl">—</td><td id="tblSigma">—</td><td>✓ IEEE-754 exact</td><td>✓ NFPA 20</td><td>Single VPS<br><small style="color:#555">no cluster / no GPU</small></td></tr>
+      <tr class="qomn"><td><b>QOMN v3.2</b><br><small>Deterministic JIT compute (AVX2)</small></td><td id="tblCrysl">—</td><td id="tblSigma">—</td><td>✓ IEEE-754 exact</td><td>✓ NFPA 20</td><td>Single VPS<br><small style="color:#555">no cluster / no GPU</small></td></tr>
       <tr class="cpp"><td>C++ GCC -O3</td><td>~5 M/s</td><td>~850 µs</td><td>✗ UB risk</td><td>✗ manual</td><td>same HW</td></tr>
       <tr class="cpp"><td>Python/NumPy</td><td>~0.2 M/s</td><td>>1 ms</td><td>✗ float drift</td><td>✗</td><td>same HW</td></tr>
       <tr class="llm"><td>General-purpose LLM<br><small style="color:#666">stochastic, non-deterministic</small></td><td>~1-5 ans/s</td><td>>1 s</td><td>&#x2717; non-deterministic</td><td>partial</td><td>API pricing</td></tr>
@@ -198,7 +198,7 @@
         <div class="proof-title">🧠 PROOF 3 · POISON PILL</div>
         <div class="proof-value" id="proof3val">CLICK</div>
         <div class="proof-unit">crashes under adversarial input (0 = safe · IEEE-754 NaN shield active)</div>
-        <div class="proof-vs" id="proof3vs">C++ UB risk: crash / memory corruption &middot; CRYS-L: branchless, NaN-safe, 0 panics</div>
+        <div class="proof-vs" id="proof3vs">C++ UB risk: crash / memory corruption &middot; QOMN: branchless, NaN-safe, 0 panics</div>
       </div>
       <div class="proof-card" id="card4" onclick="runProof('repeatability')">
         <div class="proof-title">📊 PROOF 4 · Repeatability</div>
@@ -274,7 +274,7 @@
     </div>
   </div>
   <div style="text-align:center;margin-top:14px;font-size:0.68rem;color:#555">
-    Each result is IEEE-754 bit-identical across any server, any load, any number of runs &middot; <a href="https://github.com/condesi/crysl" style="color:#e040fb">github.com/condesi/crysl</a>
+    Each result is IEEE-754 bit-identical across any server, any load, any number of runs &middot; <a href="https://github.com/condesi/qomn" style="color:#e040fb">github.com/condesi/qomn</a>
   </div>
 </div>
 
@@ -298,7 +298,7 @@
       <div class="proof-title">📐 IEEE-754 EXACT</div>
       <div class="proof-value" style="font-size:1rem">0.0 variance</div>
       <div class="proof-unit">20 runs = identical bit pattern</div>
-      <div class="proof-vs">Required across industries: NFPA, IEC, FDA, ASCE, ASHRAE. C++ floats drift. LLMs hallucinate. CRYS-L: exact.</div>
+      <div class="proof-vs">Required across industries: NFPA, IEC, FDA, ASCE, ASHRAE. C++ floats drift. LLMs hallucinate. QOMN: exact.</div>
     </div>
     <div class="proof-card" style="flex:1;min-width:200px">
       <div class="proof-title">💰 COMMERCIAL VALUE</div>
@@ -309,11 +309,11 @@
   </div>
   <div style="margin-top:16px;padding:12px;background:#0a0f0a;border-radius:4px;font-size:0.72rem;color:#888;line-height:1.7">
     <b style="color:#ff2d78">API CONTRACT — Demo Tier (public, verifiable):</b> &nbsp;<span style="color:#ffd700;font-size:0.68rem">⚡ 30 req/min · Production API key: percy.rojas@condesi.pe</span><br>
-    GET <a href="/simulation/status" target="_blank" style="color:#00e5ff">/crysl/simulation/status</a> → type:MONITORING, throughput_per_sec, IEEE-754, kernel{simd,fma,vector_width:256}, pareto{top5[params{flow_gpm,pressure_psi,efficiency}]}<br>
-    GET <a href="/simulation/repeatability" target="_blank" style="color:#00e5ff">/crysl/simulation/repeatability</a> → type:DETERMINISM, 20 runs, variance=0.0 exact<br>
-    GET <a href="/simulation/adversarial" target="_blank" style="color:#00e5ff">/crysl/simulation/adversarial</a> → type:ADVERSARIAL_RESULT, 0 panics, NaN shield active<br>
-    GET <a href="/simulation/jitter_bench" target="_blank" style="color:#00e5ff">/crysl/simulation/jitter_bench</a> → type:JITTER_RESULT, p99, sigma_ns<br>
-    GET <a href="/benchmark/vs_llm" target="_blank" style="color:#00e5ff">/crysl/benchmark/vs_llm</a> → type:LLM_COMPARISON, 1.8B universes vs 1 LLM answer
+    GET <a href="/simulation/status" target="_blank" style="color:#00e5ff">/qomn/simulation/status</a> → type:MONITORING, throughput_per_sec, IEEE-754, kernel{simd,fma,vector_width:256}, pareto{top5[params{flow_gpm,pressure_psi,efficiency}]}<br>
+    GET <a href="/simulation/repeatability" target="_blank" style="color:#00e5ff">/qomn/simulation/repeatability</a> → type:DETERMINISM, 20 runs, variance=0.0 exact<br>
+    GET <a href="/simulation/adversarial" target="_blank" style="color:#00e5ff">/qomn/simulation/adversarial</a> → type:ADVERSARIAL_RESULT, 0 panics, NaN shield active<br>
+    GET <a href="/simulation/jitter_bench" target="_blank" style="color:#00e5ff">/qomn/simulation/jitter_bench</a> → type:JITTER_RESULT, p99, sigma_ns<br>
+    GET <a href="/benchmark/vs_llm" target="_blank" style="color:#00e5ff">/qomn/benchmark/vs_llm</a> → type:LLM_COMPARISON, 1.8B universes vs 1 LLM answer
   </div>
 </div>
 
@@ -616,7 +616,7 @@ async function runProof(type) {
     card.className = 'proof-card done';
 
     if (type === 'jitter') {
-      const sigma = data.crysl?.sigma_ns?.toFixed(0) || '—';
+      const sigma = data.qomn?.sigma_ns?.toFixed(0) || '—';
       document.getElementById(vals[type]).textContent = sigma;
       document.getElementById(vs[type]).textContent = `σ=${sigma}ns vs C++ σ=850,000ns → ${data.jitter_ratio?.toFixed(0) || '—'}× flatter`;
       document.getElementById('tblSigma').textContent = sigma + ' ns';
@@ -761,8 +761,8 @@ curl -X POST https://desarrollador.xyz/api/plan/execute   -H "Content-Type: appl
 </div>
 
 <div style="max-width:1200px;margin:0 auto 30px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-  <a href="mailto:percy.rojas@condesi.pe?subject=CRYS-L API Access&body=Hello, I am interested in production API access for CRYS-L." style="display:inline-block;background:#00e5ff;color:#000;font-weight:700;font-size:0.82rem;padding:11px 26px;border-radius:4px;text-decoration:none">REQUEST API ACCESS</a>
-  <a href="https://github.com/condesi/crysl" target="_blank" style="display:inline-block;background:transparent;color:#00e5ff;font-weight:700;font-size:0.82rem;padding:11px 26px;border-radius:4px;text-decoration:none;border:1px solid #00e5ff44">VIEW ON GITHUB</a>
+  <a href="mailto:percy.rojas@condesi.pe?subject=QOMN API Access&body=Hello, I am interested in production API access for QOMN." style="display:inline-block;background:#00e5ff;color:#000;font-weight:700;font-size:0.82rem;padding:11px 26px;border-radius:4px;text-decoration:none">REQUEST API ACCESS</a>
+  <a href="https://github.com/condesi/qomn" target="_blank" style="display:inline-block;background:transparent;color:#00e5ff;font-weight:700;font-size:0.82rem;padding:11px 26px;border-radius:4px;text-decoration:none;border:1px solid #00e5ff44">VIEW ON GITHUB</a>
   <span style="color:#555;font-size:0.7rem">MIT License &middot; 56 physics plans &middot; Condesi Peru</span>
 </div>
 

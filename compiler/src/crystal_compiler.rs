@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L v1.3 — Oracle → .crystal Compiler
+// QOMN v1.3 — Oracle → .crystal Compiler
 //              "Aproximación Ternaria de Funciones"
 //
-// Compila declaraciones `oracle` de CRYS-L a formato binario .crystal
+// Compila declaraciones `oracle` de QOMN a formato binario .crystal
 // usando Physics-as-Oracle (PaO):
 //
 //   oracle f(x) → y

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L — Runtime Engine
+// QOMN — Runtime Engine
 //
 // Componentes:
 //   1. AsyncOracleEngine  — pool de threads para ORACLE_CALL async
@@ -121,7 +121,7 @@ impl AsyncOracleEngine {
 
 // ── 2. Crystal Cache (mmap lazy loader) ───────────────────────────────
 
-use crate::bytecode::CrysLoadMode;
+use crate::bytecode::QomnoadMode;
 
 /// Loaded crystal data (immutable after load).
 pub struct CrystalData {
@@ -149,7 +149,7 @@ impl CrystalCache {
         &mut self,
         crystal_id: usize,
         path: &str,
-        mode: CrysLoadMode,
+        mode: QomnoadMode,
     ) -> Result<Arc<CrystalData>, String> {
         if let Some(cached) = self.loaded.get(&crystal_id) {
             return Ok(Arc::clone(cached));
@@ -161,7 +161,7 @@ impl CrystalCache {
         Ok(arc)
     }
 
-    fn read_crystal_file(path: &str, mode: CrysLoadMode) -> Result<CrystalData, String> {
+    fn read_crystal_file(path: &str, mode: QomnoadMode) -> Result<CrystalData, String> {
         use std::io::Read;
         let mut f = std::fs::File::open(path)
             .map_err(|e| format!("Cannot open crystal '{}': {}", path, e))?;
@@ -193,7 +193,7 @@ impl CrystalCache {
         let mut packed = vec![0u8; n_bytes];
 
         match mode {
-            CrysLoadMode::Stream | CrysLoadMode::Prefetch => {
+            QomnoadMode::Stream | QomnoadMode::Prefetch => {
                 // Stream: read in 64KB chunks to avoid cache pollution
                 let chunk = 65536;
                 let mut off = 0;
@@ -203,7 +203,7 @@ impl CrystalCache {
                     off = end;
                 }
             }
-            CrysLoadMode::L1Pin => {
+            QomnoadMode::L1Pin => {
                 f.read_exact(&mut packed).map_err(|e| e.to_string())?;
             }
         }
@@ -314,7 +314,7 @@ impl Profiler {
             .collect();
         lines.sort();
 
-        let mut out = String::from("═══ CRYS-L Profiler ═══\n");
+        let mut out = String::from("═══ QOMN Profiler ═══\n");
         for l in &lines { out.push_str(l); out.push('\n'); }
 
         // Summary: total throughput

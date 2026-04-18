@@ -8,7 +8,7 @@
 
 ---
 
-Hey HN, I've been building QOMN (Crystal Language) — a compiled DSL + runtime for exhaustive engineering optimization. It's not a general-purpose language; it's designed specifically for problems where you want to sweep a parameter space completely and find Pareto-optimal solutions deterministically.
+Hey HN, I've been building QOMN (QOMN Language) — a compiled DSL + runtime for exhaustive engineering optimization. It's not a general-purpose language; it's designed specifically for problems where you want to sweep a parameter space completely and find Pareto-optimal solutions deterministically.
 
 **What it does:**
 - Declarative `oracle/plan` syntax, compiles to Cranelift JIT / LLVM 18 IR / WebAssembly
@@ -186,7 +186,7 @@ At Qomni AI Lab (Condesi Perú), we've been quietly building something that took
 
 While everyone built tools that generate answers to engineering questions, we asked: what if instead of generating one probable answer, you could evaluate every possible configuration and find the mathematically optimal one?
 
-The result is QOMN (Crystal Language) — a compiled domain-specific language that runs on commodity hardware and evaluates 154 million engineering scenarios per second with zero crashes under adversarial inputs.
+The result is QOMN (QOMN Language) — a compiled domain-specific language that runs on commodity hardware and evaluates 154 million engineering scenarios per second with zero crashes under adversarial inputs.
 
 **What that means in practice:**
 
@@ -228,6 +228,6 @@ If this problem space interests you, let's talk.
 
 *Percy Rojas Masgo — Qomni AI Lab, Condesi Perú*
 
-We present benchmark results for QOMN (Crystal Language), a compiled domain-specific language designed for exhaustive, deterministic multi-objective optimization in engineering domains. The runtime achieves 154 million scenario evaluations per second on commodity x86-64 hardware (AMD EPYC, AVX2) using a branchless Structure-of-Arrays kernel that replaces conditional branches with floating-point mask multiplications. Empirical evaluation across four dimensions demonstrates: (1) latency standard deviation of 3,334 ns under SCHED_FIFO scheduling, representing a 254× reduction relative to an untuned Linux baseline; (2) memory-bandwidth-limited SIMD utilization at 16.9% of AVX2 theoretical maximum; (3) zero panics or undefined behavior under 1.28 million adversarial inputs (NaN, ±Inf, out-of-bounds parameters); and (4) a throughput ratio of 1.53 billion× relative to sequential LLM inference for the specific task of engineering configuration space enumeration. A 3-objective Pareto front (efficiency, cost, risk) over 1,024 candidates is computed in 1.84 milliseconds. Multi-backend compilation targets Cranelift JIT, LLVM 18 IR, and WebAssembly Text Format. All results are publicly reproducible via the live benchmark endpoint: https://qomni.clanmarketer.com/qomn/demo/benchmark.html
+We present benchmark results for QOMN (QOMN Language), a compiled domain-specific language designed for exhaustive, deterministic multi-objective optimization in engineering domains. The runtime achieves 154 million scenario evaluations per second on commodity x86-64 hardware (AMD EPYC, AVX2) using a branchless Structure-of-Arrays kernel that replaces conditional branches with floating-point mask multiplications. Empirical evaluation across four dimensions demonstrates: (1) latency standard deviation of 3,334 ns under SCHED_FIFO scheduling, representing a 254× reduction relative to an untuned Linux baseline; (2) memory-bandwidth-limited SIMD utilization at 16.9% of AVX2 theoretical maximum; (3) zero panics or undefined behavior under 1.28 million adversarial inputs (NaN, ±Inf, out-of-bounds parameters); and (4) a throughput ratio of 1.53 billion× relative to sequential LLM inference for the specific task of engineering configuration space enumeration. A 3-objective Pareto front (efficiency, cost, risk) over 1,024 candidates is computed in 1.84 milliseconds. Multi-backend compilation targets Cranelift JIT, LLVM 18 IR, and WebAssembly Text Format. All results are publicly reproducible via the live benchmark endpoint: https://qomni.clanmarketer.com/qomn/demo/benchmark.html
 
 *Keywords*: domain-specific language, SIMD vectorization, Pareto optimization, deterministic computation, neuro-symbolic systems, engineering optimization, AVX2, Rust

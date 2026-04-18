@@ -99,7 +99,7 @@ User Query (natural language)
 
 ### 2.2 QOMN: The Deterministic Compute Substrate
 
-QOMN (Crystal Language) is a compiled DSL designed for exhaustive engineering optimization. Key design decisions:
+QOMN (QOMN Language) is a compiled DSL designed for exhaustive engineering optimization. Key design decisions:
 
 **Branchless arithmetic**: Comparisons return `float` (0.0 or 1.0), enabling physics validation without branches:
 

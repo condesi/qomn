@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L v0.2 — Lexer (Tokenizer)
+// QOMN v0.2 — Lexer (Tokenizer)
 // Converts source text into a flat token stream with position info.
 // ═══════════════════════════════════════════════════════════════════════
 

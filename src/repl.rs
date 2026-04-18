@@ -29,7 +29,7 @@ use crate::plan_v2;
 
 const BANNER: &str = r#"
   ╔══════════════════════════════════════════════════════╗
-  ║   QOMN v3.2  — Crystal Language REPL              ║
+  ║   QOMN v3.2  — QOMN Language REPL              ║
   ║   Qomni AI Lab · Condesi Perú · 2026                ║
   ║                                                     ║
   ║   plan_pump_sizing(Q_gpm=500, P_psi=100, eff=0.75) ║

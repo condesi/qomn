@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// CRYS-L v2.0 — Physical Unit Algebra & NFPA Validation
+// QOMN v2.0 — Physical Unit Algebra & NFPA Validation
 // Percy Rojas M. · Qomni AI Lab · 2026
 // ═══════════════════════════════════════════════════════════════════════
 

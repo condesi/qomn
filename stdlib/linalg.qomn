@@ -1,4 +1,4 @@
-// ── CRYS-L v2.7 Standard Library: Linear Algebra ─────────────────────
+// ── QOMN v2.7 Standard Library: Linear Algebra ─────────────────────
 // Provides: vec2, vec3, vec4, mat3, mat4, dot, cross, norm, normalize,
 //           det, transpose, matmul, lerp — all as built-in VM operations.
 // Reference: ISO 80000-2 (mathematical signs/symbols)
