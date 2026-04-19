@@ -1,0 +1,13 @@
+# .mailmap — canonicalize commit identities in git log and GitHub UI
+#
+# Syntax:
+#   Canonical Name <canonical@email>   Commit Name <commit@email>
+#
+# All past commits made under alternate identities (VS Code / MCP / tooling
+# sessions) are unified here under the canonical maintainer identity.
+# History SHAs are preserved; only the displayed author name/email changes.
+
+Percy Rojas <condesi@users.noreply.github.com>  <198410767+condesi@users.noreply.github.com>
+Percy Rojas <condesi@users.noreply.github.com>  Bohftw <198410767+condesi@users.noreply.github.com>
+Percy Rojas <condesi@users.noreply.github.com>  condesi <198410767+condesi@users.noreply.github.com>
+Percy Rojas <condesi@users.noreply.github.com>  Percy Rojas Masgo <condesi@users.noreply.github.com>

@@ -31,3 +31,6 @@ tmp/
 # Editor
 .vscode/
 .idea/
+
+# Deploy scripts with server credentials (Gen 6 cleanup)
+patches/
