@@ -47,7 +47,10 @@ pub fn run_repl(qomni_url: Option<String>, qomni_key: Option<String>) {
     println!("{}", BANNER);
 
     let config = QomniConfig {
-        base_url: qomni_url.unwrap_or_else(|| "http://nexus.clanmarketer.com:8090".into()),
+        base_url: qomni_url.unwrap_or_else(|| {
+            std::env::var("QOMN_SERVER_URL")
+                .unwrap_or_else(|_| "https://desarrollador.xyz".into())
+        }),
         api_key:  qomni_key.unwrap_or_else(|| "your-api-key-here".into()),
     };
 

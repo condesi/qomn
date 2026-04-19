@@ -45,7 +45,8 @@ pub struct QomniConfig {
 impl Default for QomniConfig {
     fn default() -> Self {
         Self {
-            base_url: "http://nexus.clanmarketer.com:8090".into(),
+            base_url: std::env::var("QOMN_SERVER_URL")
+                .unwrap_or_else(|_| "https://desarrollador.xyz".into()),
             api_key:  "your-api-key-here".into(),
         }
     }
