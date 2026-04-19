@@ -57,7 +57,8 @@ pub struct QomniConfig {
 impl Default for QomniConfig {
     fn default() -> Self {
         Self {
-            base_url: "http://109.123.245.234:8090".into(),
+            base_url: std::env::var("QOMN_SERVER_URL")
+                .unwrap_or_else(|_| "https://desarrollador.xyz".into()),
             api_key:  "your-api-key-here".into(),
         }
     }

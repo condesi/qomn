@@ -29,7 +29,7 @@ use crate::plan_v2;
 
 const BANNER: &str = r#"
   ╔══════════════════════════════════════════════════════╗
-  ║   QOMN v3.2  — Crystal Language REPL              ║
+  ║   QOMN v3.2  — QOMN Language REPL                 ║
   ║   Qomni AI Lab · Condesi Perú · 2026                ║
   ║                                                     ║
   ║   plan_pump_sizing(Q_gpm=500, P_psi=100, eff=0.75) ║
@@ -247,7 +247,10 @@ pub fn run_repl(qomni_url: Option<String>, qomni_key: Option<String>) {
     println!("{}", BANNER);
 
     let config = QomniConfig {
-        base_url: qomni_url.unwrap_or_else(|| "http://109.123.245.234:8090".into()),
+        base_url: qomni_url.unwrap_or_else(|| {
+            std::env::var("QOMN_SERVER_URL")
+                .unwrap_or_else(|_| "https://desarrollador.xyz".into())
+        }),
         api_key:  qomni_key.unwrap_or_else(|| "your-api-key-here".into()),
     };
 
