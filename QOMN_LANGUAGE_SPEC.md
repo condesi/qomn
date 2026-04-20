@@ -1142,7 +1142,7 @@ the running server or from the checked-out source tree.
 │  └─────────────────┘                                            │
 │                                                                 │
 │  Total: 18,271 lines Rust · 985 lines QOMN stdlib            │
-│  171 oracles · 55 plans · 13 domains                            │
+│  171 oracles · 57 plans · 10 domains                            │
 │  JIT: Cranelift 0.113 · AOT: Pre-resolved dispatch              │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -1208,7 +1208,14 @@ does not design systems. It computes.
 ### 17.2 Qomni Cognitive OS — what builds on top
 
 **Qomni Cognitive OS** (or simply *Qomni*) is a **separate
-system**, currently under active development, **not yet public**.
+system**. It is currently in **internal testing (alpha)** — **not
+yet released**, not yet available via public endpoints, and
+explicitly **outside the verifiability claims of this specification**.
+The description that follows is provided so that readers who
+encounter the name in other contexts understand the relationship
+with QOMN; it is not a feature commitment. A separate specification
+will accompany Qomni when it is ready for public release and
+independent evaluation.
 
 **Qomni's critical design property is non-dependence on LLMs**,
 not prohibition of them. Precisely:
@@ -1263,7 +1270,7 @@ answer:
 | LLM dependency | None | **None required** — LLM may be optionally used as a peripheral I/O adapter; never as the source of a certified answer |
 | Input | Structured plan call (`plan_pump_sizing`, params) | Query (structured or natural language) |
 | Output | Bit-exact numeric result + citation | Answer from deterministic cascade (cache / QOMN / HDC / experts); refuses rather than fabricates |
-| Released | Yes — Apache-2.0 on GitHub | No — under development |
+| Released | Yes — Apache-2.0 on GitHub | **No — in internal alpha testing, not yet released** |
 | Verifiable via public API | Yes — <https://desarrollador.xyz> | Not yet public |
 | Plan count | 57 (sample; target: thousands) | — (Qomni invokes QOMN) |
 | Determinism guarantee | IEEE-754 bit-exact | Deterministic-or-refuse |
@@ -1321,10 +1328,12 @@ By comparison, a single inference-grade LLM answer on GPT-4 Turbo-
 scale hardware costs several orders of magnitude more per throughput
 unit — and delivers stochastic output that cannot be certified.
 
-**Qomni Cognitive OS (under development, targets the same class of
-host).** Qomni is engineered to run in the **same commodity-VPS
-envelope** as QOMN, without GPU or specialized AI accelerator.
-Present design state:
+**Qomni Cognitive OS (in internal alpha, not yet released —
+targets the same class of host).** Qomni is engineered to run in
+the **same commodity-VPS envelope** as QOMN, without GPU or
+specialized AI accelerator. The figures below describe the system
+as it is exercised in private testing today; they are preliminary
+and may change before public release:
 
 - Multiple Rust modules compiled into a single binary, exposing a
   rich feature set through one process
