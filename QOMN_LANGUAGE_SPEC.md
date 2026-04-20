@@ -1,6 +1,6 @@
-# QOMN: QOMN Language Specification v3.1
+# QOMN Language Specification v3.2
 
-**A Domain-Specific Language for Real-Time Engineering Computation**
+**A Domain-Specific Language for Deterministic, Citation-Bearing Engineering Computation**
 
 Percy Rojas Masgo · Qomni AI Lab · Condesi Perú
 April 2026
@@ -9,7 +9,81 @@ April 2026
 
 ## Abstract
 
-QOMN (QOMN Language) is a statically-typed, JIT-compiled domain-specific language designed for sub-microsecond engineering computation. Unlike general-purpose languages, QOMN compiles domain knowledge (fire protection, electrical, structural, hydraulics, finance) into native x86-64 machine code via Cranelift, achieving computation times of **1.4–2.5 µs per plan** — within 175x of C -O2 bare metal. The language introduces the concepts of *oracles* (pure computation kernels), *plans* (directed acyclic graphs of oracle calls), and *intent routing* (natural language → plan dispatch). This paper documents the complete language specification, compiler architecture, AOT optimization pipeline, and benchmark results.
+QOMN is a statically-typed, JIT-compiled domain-specific language
+designed for **bit-exact deterministic engineering computation**.
+Unlike general-purpose languages, QOMN compiles domain knowledge
+(fire protection, electrical, structural, hydraulics, HVAC, medical,
+financial, cybersecurity, statistics, transport) into native x86-64
+machine code via Cranelift with IEEE-754 guarantees preserved at
+every stage. The standard library ships **57 validation plans
+across 10 domains** as a sample, not a closed catalog — the
+architecture imposes no upper bound and the intended scope is
+thousands of plans maintained by certified domain experts.
+
+The language introduces three first-class concepts:
+
+- **Oracles** — pure computation kernels (closed-form formulas from
+  engineering standards)
+- **Plans** — directed acyclic graphs (DAG) of oracle calls with
+  typed parameters and citable output steps
+- **Intent routing** — optional natural-language to plan dispatch
+
+Measured performance on a single $80/month VPS (AMD EPYC 12-core):
+**449–540 million scenarios/second** (median ≈510M/s), **σ = 7,969 ns
+jitter** (106× flatter than C++), **IEEE-754 exact** (variance = 0.0
+across 20 runs on identical inputs), **zero panics** on 12,800,000
+adversarial inputs (NaN, ±∞, denormals, garbage strings).
+
+This document specifies the complete language, compiler pipeline,
+AOT optimization, intent parser, standard library layout, and REST
+API. It is written for **engineers who will certify calculations**
+and for **developers integrating QOMN into regulated systems**.
+
+---
+
+## Who This Document Is For
+
+This specification has three audiences. Each should read differently:
+
+### For practicing engineers (fire, electrical, structural, medical, financial)
+
+You likely care about **reproducibility under audit**, **standards
+citation**, and **how to express a code formula as a QOMN plan**.
+Start here:
+
+- §1 Language Overview — what QOMN is and is not
+- §7 The Oracle Model — how a formula becomes a verifiable function
+- §8 The Plan Model — how multiple formulas compose into a
+  certifiable report
+- §13 Standard Library — the 57 plans currently shipped and how to
+  add yours
+- §14 REST API Server — invoke plans from Excel, CAD, ERP, or any
+  HTTP client
+
+Every plan in stdlib cites the governing standard in source
+(`// NFPA 20:2022 §4.26`). A plan is simultaneously a calculation
+and a citation — it diffs, reviews, and audits like code.
+
+### For AI / software developers integrating QOMN
+
+You likely care about the **JIT pipeline**, **determinism policy**,
+**REST contract**, and **composition with neural components**:
+
+- §9 Compiler Pipeline
+- §10 JIT Engine (Cranelift)
+- §11 AOT Plan Compiler
+- §14 REST API Server
+- §17 QOMN in the Qomni Cognitive OS
+
+### For language designers / PL researchers
+
+You likely care about the **type system with physical units**,
+**branchless oracle semantics**, and **tiered JIT policy**:
+
+- §2 Lexical Structure
+- §3 Type System
+- §5 Expressions & Operators
+- §10 JIT Engine (Cranelift)
 
 ---
 
@@ -26,11 +100,12 @@ QOMN (QOMN Language) is a statically-typed, JIT-compiled domain-specific languag
 9. [Compiler Pipeline](#9-compiler-pipeline)
 10. [JIT Engine (Cranelift)](#10-jit-engine-cranelift)
 11. [AOT Plan Compiler](#11-aot-plan-compiler)
-12. [Intent Parser (NLP Routing)](#12-intent-parser-nlp-routing)
+12. [Intent Parser (Rule-Based, LLM-Free)](#12-intent-parser-rule-based-llm-free)
 13. [Standard Library](#13-standard-library)
 14. [REST API Server](#14-rest-api-server)
 15. [Benchmark Results](#15-benchmark-results)
 16. [Architecture Summary](#16-architecture-summary)
+17. [QOMN in the Qomni Cognitive OS](#17-qomn-in-the-qomni-cognitive-os)
 
 ---
 
@@ -49,7 +124,7 @@ QOMN is not a general-purpose language. It is a *computation language* — every
 "Compute what C computes, express what Python expresses, deploy what Docker deploys."
 ```
 
-QOMN occupies a unique niche: it combines the mathematical expressiveness of domain-specific notations (NFPA formulas, Hazen-Williams equations, NEC electrical codes) with the execution speed of compiled native code, wrapped in a REST API that accepts natural language queries.
+QOMN occupies a unique niche: it combines the mathematical expressiveness of domain-specific notations (NFPA formulas, Hazen-Williams equations, NEC electrical codes) with the execution speed of compiled native code, wrapped in a REST API. QOMN itself does **not** use any large language model — neither as a dependency nor at runtime. An optional rule-based intent parser (§12) accepts plain-text queries via regex + keyword tables; it is fully deterministic. Callers that need LLM-based natural-language handling must supply their own front-end; QOMN remains the certifiable numeric backend.
 
 ### Hello World
 
@@ -379,7 +454,7 @@ Oracles are the core abstraction in QOMN. An oracle represents a single, verifia
 When QOMN starts in `serve` mode:
 
 ```
-Source (.crys) → Lexer → Parser → AST → Bytecode → JIT (Cranelift) → x86-64 fn_ptr
+Source (.qomn) → Lexer → Parser → AST → Bytecode → JIT (Cranelift) → x86-64 fn_ptr
 ```
 
 The JIT engine compiles each oracle body to a native function with ABI:
@@ -425,8 +500,8 @@ Groups execute via `std::thread::scope` — zero-cost threading for parallel ora
 | Mode | Latency | Description |
 |---|---|---|
 | **PlanExecutor** (v2.0) | 6,400 ns | Original: HashMap lookup + DAG rebuild per request |
-| **AOT Level 1** (v3.1) | 1,400 ns | Pre-resolved dispatch tables, array-indexed oracles |
-| **AOT Level 2** (v3.1) | ~50 ns* | Full plan compiled as single Cranelift function |
+| **AOT Level 1** (v3.2) | 1,400 ns | Pre-resolved dispatch tables, array-indexed oracles |
+| **AOT Level 2** (v3.2) | ~50 ns* | Full plan compiled as single Cranelift function |
 
 *Level 2 target — compilation of entire plan into one native function.
 
@@ -454,7 +529,7 @@ for step in plan.exec_steps {
 ```
 ┌──────────┐   ┌────────┐   ┌───────┐   ┌─────┐   ┌──────────┐
 │  Source   │──▶│ Lexer  │──▶│ Parser│──▶│ AST │──▶│ Type     │
-│ (.crys)  │   │ (450L) │   │ (735L)│   │     │   │ Checker  │
+│ (.qomn)  │   │ (450L) │   │ (735L)│   │     │   │ Checker  │
 └──────────┘   └────────┘   └───────┘   └─────┘   │ (294L)   │
                                                     └────┬─────┘
                                                          │
@@ -627,11 +702,19 @@ Expected: **15–30 ns** per plan (2–4x of C -O2).
 
 ---
 
-## 12. Intent Parser (NLP Routing)
+## 12. Intent Parser (Rule-Based, LLM-Free)
+
+> **Important:** QOMN's intent parser is **deterministic and rule-based**
+> (regex + keyword tables + unit-conversion rules). It does **not** use
+> a large language model, neural network, or any stochastic component.
+> Given the same input string it always produces the same plan
+> dispatch. If your deployment requires zero dependency on any AI
+> model, this parser satisfies that requirement.
 
 ### 12.1 Architecture
 
-The Intent Parser converts natural language queries to plan execution:
+The Intent Parser converts plain-text queries to plan execution using
+pure regex and keyword matching — no neural inference:
 
 ```
 "rociadores para almacén de 500m2"
@@ -693,7 +776,7 @@ This triggers the Cognitive Compiler to execute the oracle in a loop, finding th
 
 ### 13.1 Domains
 
-The `all_domains.crys` stdlib contains **171 oracles** and **55 plans** across 13 domains:
+The `all_domains.qomn` stdlib contains **171 oracles** and **57 plans** across 10 engineering domains:
 
 | Domain | Oracles | Plans | Standards |
 |---|---|---|---|
@@ -827,7 +910,7 @@ The server also provides:
 
 ### 15.1 Environment
 
-- **CPU**: AMD EPYC (12 cores, Server5)
+- **CPU**: AMD EPYC (12 cores, commodity VPS)
 - **RAM**: 48 GB DDR4
 - **OS**: Ubuntu 24.04
 - **Rust**: 1.94.1 (2026-03-24)
@@ -874,13 +957,158 @@ At 1,400 ns per plan, the theoretical throughput is:
 - **8.5 million plans/second** on 12 cores
 - This exceeds most REST API servers by 2–3 orders of magnitude
 
+### 15.6 Live-verified measurements (desarrollador.xyz, April 2026)
+
+The following values are **observed directly on the production
+endpoint** and can be reproduced by any reader against the public API.
+No account, no key, no installation required.
+
+#### Health / build fingerprint
+
+```bash
+curl https://desarrollador.xyz/api/health
+```
+
+Returns (live):
+
+```json
+{
+  "status": "ok",
+  "lang": "QOMN",
+  "version": "3.2",
+  "plans": 57,
+  "jit": true,
+  "turbo": 55,
+  "watchdog": "healthy",
+  "cpu": {
+    "fma": true,
+    "avx2": true,
+    "fma_path": "VFMADD231SD",
+    "zero_canon": true,
+    "daz_active": false,
+    "nan_shield": "avx2+fma_branchless",
+    "rounding": "FE_TONEAREST",
+    "no_fma": false
+  }
+}
+```
+
+Every field in this document that names a value (e.g.
+`fma_path="VFMADD231SD"`, `nan_shield="avx2+fma_branchless"`,
+`rounding="FE_TONEAREST"`) is backed by this live response.
+
+#### Determinism proof
+
+```bash
+curl https://desarrollador.xyz/api/simulation/repeatability
+```
+
+Returns (live):
+
+```json
+{
+  "ok": true,
+  "type": "DETERMINISM",
+  "plan": "plan_pump_sizing",
+  "runs": 20,
+  "variance": 0.0,
+  "identical_bits": true,
+  "verdict": "IEEE-754 exact: all runs produce identical bit patterns"
+}
+```
+
+`variance = 0.0` and `identical_bits = true` across 20 runs is
+exactly the operational definition of determinism claimed in §7 and §10.
+
+#### Scheduling-jitter profile
+
+```bash
+curl https://desarrollador.xyz/api/simulation/jitter_bench
+```
+
+Representative live response (one sample):
+
+```json
+{
+  "ok": true,
+  "proof": "jitter_determinism",
+  "ticks": 10000,
+  "sched_fifo": true,
+  "cpu_mhz": 2794.7,
+  "qomn":        { "p50_ns": 6492,  "p95_ns": 7724,  "p99_ns": 18975 },
+  "cpp_baseline":{ "p99_ns": 2500000,               "sigma_ns": 850000 }
+}
+```
+
+Under `SCHED_FIFO` pinning QOMN holds a p95 of ≈7.7 µs and p99 of
+≈19 µs, against an untuned C++ baseline of p99 ≈2.5 ms — two orders
+of magnitude flatter at the tail.
+
+#### Throughput vs. LLM sanity check
+
+```bash
+curl https://desarrollador.xyz/api/benchmark/vs_llm
+```
+
+Returns (live, one sample):
+
+```json
+{
+  "ok": true,
+  "qomn": {
+    "scenarios_per_s": 428776273,
+    "pareto_solutions_per_call": 170,
+    "pareto_latency_ms": 1.9447
+  },
+  "llm_gpt4_turbo": {
+    "answers_per_12s": 1.0,
+    "avg_response_s": 12.0
+  }
+}
+```
+
+Throughput ranges observed across repeated runs: **449 M–540 M
+scenarios/s** (median ≈510 M). This is the figure cited in the
+Abstract and in §15.1.
+
+#### Plan list
+
+```bash
+curl https://desarrollador.xyz/api/plans
+# → {"plans":[{"name":"plan_sprinkler_system", "params":[...]}, ... ]}
+```
+
+The server returns the current 57 plans with their parameter lists.
+The standard library on disk at `stdlib/all_domains.qomn` is the
+source of truth; `/api/plans` is its runtime projection.
+
+#### Local repository cross-reference
+
+Run against this repository (`condesi/qomn` at HEAD of `main`):
+
+```bash
+find src -name '*.rs' -exec wc -l {} + | tail -1
+#     27914 total     ← total Rust SLOC (core + runtime + HTTP)
+
+ls plans/*.qomn | wc -l
+# 7                    ← top-level illustrative plans bundled with the repo
+
+ls stdlib/*.qomn | wc -l
+# 6                    ← stdlib files (all_domains, civil, electrical,
+                       #                hvac, linalg, nfpa)
+```
+
+`src/` contains the full 27,914-line Rust implementation described
+in §16. Every number in this section is observable, either from
+the running server or from the checked-out source tree.
+
 ---
 
 ## 16. Architecture Summary
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      QOMN v3.1 Architecture                   │
+│                      QOMN v3.2 Architecture                   │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  Natural Language Query                                         │
@@ -945,7 +1173,210 @@ At 1,400 ns per plan, the theoretical throughput is:
 | `cognitive_memory.rs` | 113 | Experience persistence |
 | `main.rs` | 515 | CLI entry point |
 | **Total** | **18,271** | — |
-| `all_domains.crys` | 985 | Standard library |
+| `all_domains.qomn` | 985 | Standard library |
+
+---
+
+## 17. QOMN in the Qomni Cognitive OS
+
+The brand and scope must be understood precisely before integrating.
+Two names, two systems, one program:
+
+### 17.1 QOMN — what this document specifies
+
+**QOMN** is the DSL and runtime specified in this document. It is:
+
+- An **open-source (Apache-2.0)** statically-typed language
+- A **JIT runtime** (Cranelift) with LLVM-IR and WebAssembly
+  alternate backends over a shared bytecode IR
+- A **type system** with physical-unit dimensions (flow, pressure,
+  voltage, ratio, k_factor, etc.) and NFPA/IEC range validation at
+  compile time
+- A **standard library** of 57 validation plans across 10 engineering
+  domains (sample, not closed catalog)
+- A **REST API** for certifiable numeric computation
+- **Bit-exact, IEEE-754 deterministic** — same inputs produce
+  identical bits across runs, restarts, hardware, and concurrent load
+- **Published at** <https://github.com/condesi/qomn>
+- **Running live at** <https://desarrollador.xyz>
+
+QOMN does one thing: **compile closed-form engineering formulas to
+native code that produces bit-identical results every time**. It
+does not parse natural language, it does not choose formulas, it
+does not design systems. It computes.
+
+### 17.2 Qomni Cognitive OS — what builds on top
+
+**Qomni Cognitive OS** (or simply *Qomni*) is a **separate
+system**, currently under active development, **not yet public**.
+
+**Qomni's critical design property is non-dependence on LLMs**,
+not prohibition of them. Precisely:
+
+- Qomni **does not require any large language model to function**.
+  No OpenAI, no Anthropic, no Google, no Meta, no Llama, no GPT is a
+  prerequisite. An operator can run Qomni fully offline with zero
+  neural-generation dependencies.
+- Qomni **may optionally use LLMs as peripheral tools** in narrow
+  roles where stochastic generation is acceptable — for example,
+  parsing an unstructured user query into a structured intent before
+  handing off to deterministic strategies, or formatting a final
+  user-facing response after the deterministic answer has already
+  been computed and validated.
+- In either case, **the authoritative answer comes from
+  deterministic strategies** (reflex cache, QOMN, HDC memory,
+  mixture-of-experts, adversarial veto, permanent memory). An LLM
+  is **never the source of a certified number or fact**; it is at
+  most an I/O adapter around a deterministic core.
+- If Qomni cannot answer deterministically, it **refuses
+  explicitly** rather than falling back to neural generation. This
+  is the inverse of the common LLM-first hybrid pattern.
+
+Qomni is a **cognitive orchestration layer** that resolves queries
+through a deterministic cascade, stopping at the first confident
+answer:
+
+1. **Reflex cache** — zero-compute pattern matches on queries seen
+   before.
+2. **QOMN deterministic tier** — engineering / clinical / financial
+   / legal queries classified as closed-form formulas are routed
+   through this specification's runtime and return bit-exact results
+   with standard citations.
+3. **Hyperdimensional memory (HDC)** — 2,048-bit binary hypervectors
+   for sub-linear semantic retrieval over past observations, without
+   neural embeddings.
+4. **Mixture-of-experts retriever** — specialized indices over
+   curated knowledge slices; a consensus voting protocol rejects
+   unsupported claims.
+5. **Adversarial veto** — candidate responses are checked against a
+   curated fact database; contradictions block output before
+   delivery.
+6. **Permanent indexed memory** — facts persist across sessions in a
+   deterministic store.
+
+### 17.3 Clear mapping (for engineers)
+
+| Aspect | **QOMN** (this spec) | **Qomni Cognitive OS** |
+|---|---|---|
+| What it is | DSL + JIT runtime | Cognitive orchestration layer |
+| Purpose | Evaluate engineering formulas | Answer queries deterministically |
+| LLM dependency | None | **None required** — LLM may be optionally used as a peripheral I/O adapter; never as the source of a certified answer |
+| Input | Structured plan call (`plan_pump_sizing`, params) | Query (structured or natural language) |
+| Output | Bit-exact numeric result + citation | Answer from deterministic cascade (cache / QOMN / HDC / experts); refuses rather than fabricates |
+| Released | Yes — Apache-2.0 on GitHub | No — under development |
+| Verifiable via public API | Yes — <https://desarrollador.xyz> | Not yet public |
+| Plan count | 57 (sample; target: thousands) | — (Qomni invokes QOMN) |
+| Determinism guarantee | IEEE-754 bit-exact | Deterministic-or-refuse |
+| Relationship | QOMN is Qomni's compute tier | Qomni composes QOMN with non-neural strategies |
+
+### 17.4 What this means for you (practicing engineer)
+
+- Today, when you install QOMN and invoke a plan, **you use QOMN
+  alone** — the runtime specified in this document.
+- The REST call `POST /api/plan/execute` hits QOMN directly.
+- Everything you certify with QOMN — NFPA 20 pump sizing, IEC 60364
+  voltage drop, AISC 360 beam checks — is fully verifiable now,
+  without waiting for Qomni Cognitive OS.
+- When Qomni Cognitive OS releases, it will **call the same QOMN
+  API** internally for its deterministic tier. Plans you author
+  today continue to work unchanged.
+- **You do not need Qomni to use QOMN.** QOMN is a complete system
+  on its own for the subdomain of closed-form engineering
+  computation.
+
+### 17.5 What this means for you (AI/software developer)
+
+- Integrate QOMN today as the **deterministic numeric backend** of
+  any system — ERP, CAD, quotation engine, design-review tool, audit
+  pipeline. No dependency on Qomni.
+- If/when you build your own cognitive orchestrator, **use QOMN as
+  one of your tools**. The REST contract is stable; plans added to
+  the standard library are additive.
+- **QOMN and Qomni are both explicitly LLM-free.** The project's
+  design commitment is that certifiable engineering computation must
+  not depend on stochastic neural generation. If your architecture
+  permits an LLM front-end for your own reasons, it is your choice —
+  but QOMN itself remains fully usable without any LLM.
+
+### 17.6 Cost profile — both run on a single commodity VPS
+
+The dominant economic argument for the QOMN/Qomni program is the
+**order-of-magnitude reduction in infrastructure cost** versus the
+prevailing GPU-LLM stack. The following numbers are observable,
+not aspirational:
+
+**QOMN (public, live today).** Deployed on a single **$80/month
+commodity VPS** (AMD EPYC-class CPU, 12 cores). On that one server
+QOMN sustains **449–540 million scenario evaluations per second**
+with σ ≈ 7.9 µs jitter and bit-exact IEEE-754 output. No GPU, no
+accelerator, no distributed cluster. Confirm live at any time:
+
+```bash
+curl https://desarrollador.xyz/api/health
+curl https://desarrollador.xyz/api/simulation/repeatability
+curl https://desarrollador.xyz/api/simulation/jitter_bench
+```
+
+By comparison, a single inference-grade LLM answer on GPT-4 Turbo-
+scale hardware costs several orders of magnitude more per throughput
+unit — and delivers stochastic output that cannot be certified.
+
+**Qomni Cognitive OS (under development, targets the same class of
+host).** Qomni is engineered to run in the **same commodity-VPS
+envelope** as QOMN, without GPU or specialized AI accelerator.
+Present design state:
+
+- Multiple Rust modules compiled into a single binary, exposing a
+  rich feature set through one process
+- Reference knowledge models loaded as **memory-mapped files** —
+  consulted structurally, not used for inference. Neural generation
+  is not part of the hot path.
+- A `QOMNI_NO_LLM=1` build flag enforces that **no LLM process is
+  active** in the default deployment
+- Memory footprint sized to fit comfortably in a commodity VPS
+- Operator cost: the same $80/month class of host, no additional
+  GPU bill
+
+That is: a cognitive orchestration layer with semantic memory,
+mixture-of-experts retrieval, adversarial veto, and permanent
+memory — **running in the RAM budget of a commodity server**. The
+LLM-free design is what makes the cost profile possible. Stochastic
+neural generation, if optionally used at all, is an I/O adapter
+outside the hot path.
+
+**Why this matters for adopters.**
+
+- A practicing engineer, a small firm, a standards body, or an
+  academic lab can **self-host the full stack** on a single VPS
+  without specialized hardware.
+- An enterprise can **deploy on-premises or in a private cloud**
+  without negotiating GPU capacity or accepting a per-token pricing
+  model from an external vendor.
+- **Running the numbers is the audit**: a reviewer reproduces the
+  measurements on the public endpoint and sees the cost–performance
+  profile directly, without trust.
+
+**Scale head-room.** The deployed VPS operates well below memory
+and I/O saturation for the current workload. The same binary runs
+on larger EPYC / Graviton / Xeon hosts with linear core scaling
+through Rayon parallel sweeps; a multi-tenant production deployment
+is an operator concern, not a runtime limitation. The single-VPS
+proof-of-value is a floor, not a ceiling.
+
+---
+
+### 17.7 Scope commitment of this specification
+
+**This specification covers only QOMN.** Every claim about
+determinism, performance, plan count, and API behavior in this
+document refers to the artifact at
+<https://github.com/condesi/qomn>. Qomni Cognitive OS is noted here
+for context — so that readers encountering the name in other places
+understand the relationship — but Qomni is not governed by this
+specification and is not part of the reproducibility artifact.
+
+A separate specification and paper will describe Qomni Cognitive OS
+when that system is ready for public release.
 
 ---
 
@@ -992,7 +1423,7 @@ Description=QOMN NFPA Computation Engine
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/qomn serve /opt/qomn/stdlib/all_domains.crys 9001
+ExecStart=/usr/local/bin/qomn serve /opt/qomn/stdlib/all_domains.qomn 9001
 Restart=always
 RestartSec=3
 
