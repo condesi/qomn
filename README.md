@@ -1,4 +1,7 @@
-# QOMN — Deterministic Compute Engine for Critical Systems
+# QOMN — Deterministic Execution Kernel
+
+> **The core logical-execution engine of the Qomni Cognitive OS.**
+> An open-source DSL and JIT runtime for verifiable, bit-exact, citation-bearing computation across engineering, clinical, legal, financial, and scientific domains. No LLM. No approximation. No ceiling on the number of plans.
 
 > **Global Integrity Hash — 10,000 scenarios, Q_gpm=100..599, P_psi=100, eff=0.75**
 > ```
@@ -15,7 +18,7 @@ global_hash(10K scenarios)    = 2a59c51d551897a910e12d6d8fbaa14fe5bd91a5df87f92b
 variance across 20 runs       = 0.000000000000  (not "near zero" — exactly zero)
 panics on 12,800,000 poisons  = 0
 jitter σ                      = 7,969 ns vs C++ σ = 850,000 ns  (106× more stable)
-throughput                    = 101M+ simulations/sec on a single $80/month VPS
+throughput                    = 449M-540M simulations/sec on a single $80/month VPS
 ```
 
 
@@ -154,7 +157,7 @@ curl -X POST https://desarrollador.xyz/api/plan/execute \
 | 9 | Overflow `1e308×1e308` | `+inf` (safe saturation) — no crash, no UB |
 | 10 | Garbage/injection inputs | Rejected — path traversal, NaN strings, null all blocked |
 | 11 | 50% CPU stress latency | P99=4,425µs · P999=4,902µs — no engine degradation |
-| 12 | SIMD saturation | `101M evals/s` · `20.2× vs C++` · `avx2+fma` |
+| 12 | SIMD saturation | `449M-540M evals/s` · `~100× vs C++` · `avx2+fma` |
 | 13 | JIT branch elimination | `501 ns/plan` — Cranelift eliminates all branches at compile time |
 | 14 | Unaligned memory access | `VMOVDQU` — <1 cycle penalty, safe on all architectures |
 | 15 | Energy efficiency | `3.4M evals/joule` · 1B scenarios = 296 joules |
@@ -200,7 +203,7 @@ plan plan_pump_sizing(Q_gpm: float, P_psi: float, eff: float = 0.70):
 
 | System | Scenarios/s | Jitter σ | Determinism | Cost/month |
 |---|---|---|---|---|
-| **QOMN v3.2 AVX2** | **101M+** | **7.9K ns** | **IEEE-754 exact** | **$80** |
+| **QOMN v3.2 AVX2** | **449M-540M** | **7.9K ns** | **IEEE-754 exact** | **$80** |
 | C++ GCC -O3 | ~5M | ~850,000 ns | risk: UB on NaN path | same HW |
 | Python/NumPy | ~200K | >1ms | risk: version drift | same HW |
 
@@ -230,9 +233,9 @@ QOMN DSL (.qomn / all_domains.crys)
   ↓ Cranelift JIT + AVX2 AOT compilation at startup (~10ms, one-time)
 Physics guards (API boundary) — invalid inputs rejected before JIT
 Branchless oracle execution — VMULSD/VDIVSD, no branches in hot path
-OracleCache — 56 plans, zero heap allocation per call (stack-only results)
+OracleCache — 57 plans, zero heap allocation per call (stack-only results)
   ↓
-101M+ simulations/sec · 14 MB RAM at rest · 8.3 MB binary
+449M-540M simulations/sec · 14 MB RAM at rest · 8.3 MB binary
 ```
 
 **Runtime:** Rust · Cranelift JIT · AVX2 + FMA
@@ -295,8 +298,8 @@ QOMN does not. The hash above is the proof.
 
 - **Academic preprint and reproducibility artifact:** [`condesi/qomn-paper`](https://github.com/condesi/qomn-paper)
   — LaTeX source of the paper, bibliography, reproducibility scripts, installation guide for reviewers.
-- **Legacy language spec (archived):** [`condesi/crysl-lang`](https://github.com/condesi/crysl-lang)
-  — The original CRYS-L / QOMN v2.3 language specification repository. Read-only. Consolidated into this repo and `qomn-paper`.
+- **Archived QOMN v2.3 spec repository:** [`condesi/crysl-lang`](https://github.com/condesi/crysl-lang) *(read-only)*
+  — Early QOMN language specification, kept under its original URL for reference continuity. Current specification lives in this repository (`QOMN_LANGUAGE_SPEC.md`) and in [`condesi/qomn-paper`](https://github.com/condesi/qomn-paper) (`LANGUAGE_SPEC.md`).
 
 ---
 
