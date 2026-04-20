@@ -28,11 +28,18 @@ The language introduces three first-class concepts:
   typed parameters and citable output steps
 - **Intent routing** — optional natural-language to plan dispatch
 
-Measured performance on a single $80/month VPS (AMD EPYC 12-core):
-**449–540 million scenarios/second** (median ≈510M/s), **σ = 7,969 ns
-jitter** (106× flatter than C++), **IEEE-754 exact** (variance = 0.0
-across 20 runs on identical inputs), **zero panics** on 12,800,000
-adversarial inputs (NaN, ±∞, denormals, garbage strings).
+Measured performance on a single $80/month VPS (AMD EPYC-class,
+12 cores): sustained throughput in the **high hundreds of millions
+of scenarios per second** (representative live samples ≈430–540 M/s
+depending on endpoint and load); **scheduling jitter p50 ≈ 6.6 µs,
+p95 ≈ 7.2 µs** under `SCHED_FIFO` pinning — roughly two orders of
+magnitude flatter at the tail than an untuned C++ baseline;
+**IEEE-754 exact** (variance = 0.0 across 20 runs on identical
+inputs, bit-identical outputs verified via FNV-1a hash of the
+result payload); **zero panics** on 12,800,000 adversarial inputs
+(NaN, ±∞, denormals, garbage strings). Every number in this
+paragraph is reproducible against the public endpoints listed in
+§15.6; readers should re-measure rather than trust.
 
 This document specifies the complete language, compiler pipeline,
 AOT optimization, intent parser, standard library layout, and REST
@@ -1067,9 +1074,16 @@ Returns (live, one sample):
 }
 ```
 
-Throughput ranges observed across repeated runs: **449 M–540 M
-scenarios/s** (median ≈510 M). This is the figure cited in the
-Abstract and in §15.1.
+`/api/benchmark/vs_llm` returns a stable reference figure of
+**≈428 M scenarios/s** (the value above is bit-reproducible across
+repeated calls). Fresh live runs of `/api/simulation/jitter_bench`
+have been observed in the **high 400 M to low 500 M range**
+depending on load and kernel scheduling window. The figures cited
+in the Abstract ("high hundreds of millions of scenarios per
+second, representative samples ≈430–540 M/s") are intended to
+capture that range honestly. Reviewers are encouraged to measure
+both endpoints and report any divergence from these bounds as an
+issue on the GitHub repository.
 
 #### Plan list
 
